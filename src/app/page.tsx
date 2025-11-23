@@ -4,6 +4,8 @@ import { useState } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { TextInput } from "@/components/TextInput";
 import { ResultCard } from "@/components/ResultCard";
+import { HistoryList } from "@/components/HistoryList";
+import { useHistoryStore } from "@/store/historyStore";
 
 export default function Home() {
   const [inputText, setInputText] = useState("");
@@ -11,8 +13,11 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleImprove = async () => {
-    if (!inputText.trim()) return;
+  const { entries, addEntry, deleteEntry, clearAll } = useHistoryStore();
+
+  const handleImprove = async (textToImprove?: string) => {
+    const text = textToImprove || inputText;
+    if (!text.trim()) return;
 
     setIsLoading(true);
     setError("");
@@ -24,7 +29,7 @@ export default function Home() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ text: inputText }),
+        body: JSON.stringify({ text }),
       });
 
       const data = await response.json();
@@ -34,11 +39,16 @@ export default function Home() {
       }
 
       setResult(data.improvedText);
+      addEntry(text, data.improvedText);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handlePaste = (pastedText: string) => {
+    handleImprove(pastedText);
   };
 
   return (
@@ -59,7 +69,7 @@ export default function Home() {
             Transform Your Writing
           </h2>
           <p className="text-foreground/60 text-lg">
-            Paste your text and let AI make it more professional and polished 🚀
+            Paste your text and it will be improved automatically 🚀
           </p>
         </div>
 
@@ -67,7 +77,8 @@ export default function Home() {
           <TextInput
             value={inputText}
             onChange={setInputText}
-            onSubmit={handleImprove}
+            onSubmit={() => handleImprove()}
+            onPaste={handlePaste}
             isLoading={isLoading}
           />
 
@@ -80,8 +91,14 @@ export default function Home() {
           <ResultCard result={result} isLoading={isLoading} />
         </div>
 
+        <HistoryList
+          entries={entries}
+          onDelete={deleteEntry}
+          onClearAll={clearAll}
+        />
+
         <footer className="mt-16 text-center text-sm text-foreground/40">
-          <p>Made with ❤️ for better communication</p>
+          <p>Made by Ethan :)</p>
         </footer>
       </main>
     </div>
