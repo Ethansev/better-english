@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { buildOpenAIRequestBody } from "@/lib/openai";
 
 export async function POST(request: NextRequest) {
   try {
@@ -32,30 +33,7 @@ export async function POST(request: NextRequest) {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
       },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: `You are a professional English writing assistant. Your task is to improve the given text to make it more professional, clear, and grammatically correct while maintaining the original meaning and intent.
-
-Guidelines:
-- Fix grammar and spelling errors
-- Improve sentence structure for clarity
-- Make the tone slightly more professional but still natural
-- Keep the improved version concise
-- Preserve the original meaning and intent
-- Do not add unnecessary formality or jargon
-- Only return the improved text, nothing else (no explanations, no quotes)`,
-          },
-          {
-            role: "user",
-            content: text,
-          },
-        ],
-        temperature: 0.7,
-        max_tokens: 1000,
-      }),
+      body: JSON.stringify(buildOpenAIRequestBody(text)),
     });
 
     if (!response.ok) {
