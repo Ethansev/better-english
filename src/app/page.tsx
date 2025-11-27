@@ -5,7 +5,8 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { TextInput } from "@/components/TextInput";
 import { ResultCard } from "@/components/ResultCard";
 import { HistoryList } from "@/components/HistoryList";
-import { useHistoryStore } from "@/store/historyStore";
+import { AuthButton } from "@/components/AuthButton";
+import { useHistory } from "@/supabase/useHistory";
 
 export default function Home() {
   const [inputText, setInputText] = useState("");
@@ -13,7 +14,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const { entries, addEntry, deleteEntry, clearAll } = useHistoryStore();
+  const { entries, addEntry, deleteEntry, clearAll } = useHistory();
 
   const handleImprove = async (textToImprove?: string) => {
     const text = textToImprove || inputText;
@@ -59,7 +60,10 @@ export default function Home() {
             <span className="text-2xl">✨</span>
             BetterEnglish
           </h1>
-          <ThemeToggle />
+          <div className="flex items-center gap-3">
+            <AuthButton />
+            <ThemeToggle />
+          </div>
         </div>
       </header>
 

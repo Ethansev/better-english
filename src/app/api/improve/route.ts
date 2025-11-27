@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildOpenAIRequestBody } from "@/lib/openai";
+import { createClient } from "@/supabase/server";
 
 export async function POST(request: NextRequest) {
   try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
     const { text } = await request.json();
 
     if (!text || typeof text !== "string") {
@@ -53,6 +59,18 @@ export async function POST(request: NextRequest) {
         { error: "No response from AI. Please try again." },
         { status: 500 }
       );
+    }
+
+    if (user) {
+      const { error: dbError } = await supabase.from("requests").insert({
+        user_id: user.id,
+        original_text: text,
+        improved_text: improvedText,
+      });
+
+      if (dbError) {
+        console.error("Failed to save history:", dbError);
+      }
     }
 
     return NextResponse.json({ improvedText });
