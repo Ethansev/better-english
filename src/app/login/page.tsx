@@ -3,17 +3,67 @@
 import Link from "next/link";
 import { useAuth } from "@/supabase/useAuth";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+
+type AuthMode = "signin" | "signup";
 
 export default function LoginPage() {
-  const { user, isLoading, signInWithGoogle, signInWithGitHub } = useAuth();
+  const {
+    user,
+    isLoading,
+    signInWithGoogle,
+    signInWithGitHub,
+    signUpWithEmail,
+    signInWithEmail,
+  } = useAuth();
   const router = useRouter();
+  const [mode, setMode] = useState<AuthMode>("signin");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (user && !isLoading) {
       router.push("/");
     }
   }, [user, isLoading, router]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setIsSubmitting(true);
+
+    try {
+      if (mode === "signup") {
+        if (!name.trim()) {
+          setError("Please enter your name");
+          setIsSubmitting(false);
+          return;
+        }
+        if (password !== confirmPassword) {
+          setError("Passwords do not match");
+          setIsSubmitting(false);
+          return;
+        }
+        const { error } = await signUpWithEmail(email, password, name.trim());
+        if (error) {
+          setError(error.message);
+        }
+      } else {
+        const { error } = await signInWithEmail(email, password);
+        if (error) {
+          setError(error.message);
+        }
+      }
+    } catch {
+      setError("An unexpected error occurred");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -39,14 +89,121 @@ export default function LoginPage() {
             BetterEnglish
           </Link>
           <p className="mt-2 text-foreground/60">
-            Sign in to save your history
+            {mode === "signin"
+              ? "Sign in to save your history"
+              : "Create an account to get started"}
           </p>
         </div>
 
         <div className="bg-card border border-card-border rounded-2xl p-6 space-y-4">
+          {/* Tab Toggle */}
+          <div className="flex bg-foreground/5 rounded-xl p-1">
+            <button
+              type="button"
+              onClick={() => {
+                setMode("signin");
+                setError(null);
+                setConfirmPassword("");
+              }}
+              className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${
+                mode === "signin"
+                  ? "bg-foreground text-background"
+                  : "text-foreground/60 hover:text-foreground"
+              }`}
+            >
+              Sign In
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMode("signup");
+                setError(null);
+              }}
+              className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${
+                mode === "signup"
+                  ? "bg-foreground text-background"
+                  : "text-foreground/60 hover:text-foreground"
+              }`}
+            >
+              Sign Up
+            </button>
+          </div>
+
+          {/* Email/Password Form */}
+          <form onSubmit={handleSubmit} className="space-y-3">
+            {mode === "signup" && (
+              <input
+                type="text"
+                placeholder="Name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full px-4 py-3 bg-foreground/5 border border-foreground/10 rounded-xl text-foreground placeholder:text-foreground/40 focus:outline-none focus:border-foreground/30 transition-colors"
+                disabled={isSubmitting}
+              />
+            )}
+            <input
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-4 py-3 bg-foreground/5 border border-foreground/10 rounded-xl text-foreground placeholder:text-foreground/40 focus:outline-none focus:border-foreground/30 transition-colors"
+              required
+              disabled={isSubmitting}
+            />
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-4 py-3 bg-foreground/5 border border-foreground/10 rounded-xl text-foreground placeholder:text-foreground/40 focus:outline-none focus:border-foreground/30 transition-colors"
+              required
+              minLength={6}
+              disabled={isSubmitting}
+            />
+            {mode === "signup" && (
+              <input
+                type="password"
+                placeholder="Confirm Password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full px-4 py-3 bg-foreground/5 border border-foreground/10 rounded-xl text-foreground placeholder:text-foreground/40 focus:outline-none focus:border-foreground/30 transition-colors"
+                required
+                minLength={6}
+                disabled={isSubmitting}
+              />
+            )}
+
+            {error && (
+              <p className="text-red-500 text-sm px-1">{error}</p>
+            )}
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full px-4 py-3 bg-foreground text-background rounded-xl font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSubmitting
+                ? "Loading..."
+                : mode === "signin"
+                ? "Sign In"
+                : "Create Account"}
+            </button>
+          </form>
+
+          {/* Divider */}
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-foreground/10" />
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 bg-card text-foreground/40">or</span>
+            </div>
+          </div>
+
+          {/* OAuth Buttons */}
           <button
             onClick={signInWithGoogle}
-            className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-foreground text-background rounded-xl font-medium hover:opacity-90 transition-opacity"
+            className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-foreground/10 text-foreground rounded-xl font-medium hover:bg-foreground/20 transition-colors"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path

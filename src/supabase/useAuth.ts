@@ -2,7 +2,11 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "./client";
-import type { User } from "@supabase/supabase-js";
+import type { User, AuthError } from "@supabase/supabase-js";
+
+type AuthResult = {
+  error: AuthError | null;
+};
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
@@ -43,12 +47,43 @@ export function useAuth() {
     await supabase.auth.signOut();
   }, [supabase.auth]);
 
+  const signUpWithEmail = useCallback(
+    async (
+      email: string,
+      password: string,
+      name: string
+    ): Promise<AuthResult> => {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { name },
+        },
+      });
+      return { error };
+    },
+    [supabase.auth]
+  );
+
+  const signInWithEmail = useCallback(
+    async (email: string, password: string): Promise<AuthResult> => {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      return { error };
+    },
+    [supabase.auth]
+  );
+
   return {
     user,
     isLoading,
     isAuthenticated: !!user,
     signInWithGoogle,
     signInWithGitHub,
+    signUpWithEmail,
+    signInWithEmail,
     signOut,
   };
 }
