@@ -15,17 +15,33 @@ export function useAuth() {
   const supabase = createClient();
 
   useEffect(() => {
+    const fetchProfile = async (userId: string): Promise<boolean> => {
+      try {
+        const profilePromise = supabase
+          .from("profiles")
+          .select("is_admin")
+          .eq("id", userId)
+          .single();
+
+        // Timeout to prevent hanging on slow/stuck queries
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Profile query timeout")), 3000)
+        );
+
+        const { data: profile } = await Promise.race([profilePromise, timeoutPromise]);
+        return profile?.is_admin || false;
+      } catch {
+        return false;
+      }
+    };
+
     const loadUser = async () => {
       const { data } = await supabase.auth.getUser();
       setUser(data.user);
 
       if (data.user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("is_admin")
-          .eq("id", data.user.id)
-          .single();
-        setIsAdmin(profile?.is_admin || false);
+        const adminStatus = await fetchProfile(data.user.id);
+        setIsAdmin(adminStatus);
       } else {
         setIsAdmin(false);
       }
@@ -41,12 +57,8 @@ export function useAuth() {
       setUser(session?.user ?? null);
 
       if (session?.user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("is_admin")
-          .eq("id", session.user.id)
-          .single();
-        setIsAdmin(profile?.is_admin || false);
+        const adminStatus = await fetchProfile(session.user.id);
+        setIsAdmin(adminStatus);
       } else {
         setIsAdmin(false);
       }
