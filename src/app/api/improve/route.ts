@@ -73,6 +73,23 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Log analytics for ALL requests (even anonymous)
+    const ip =
+      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      request.headers.get("x-real-ip") ||
+      "unknown";
+
+    const { error: analyticsError } = await supabase.from("analytics").insert({
+      user_id: user?.id || null,
+      ip_address: ip,
+      original_text_length: text.length,
+      improved_text_length: improvedText.length,
+    });
+
+    if (analyticsError) {
+      console.error("Failed to log analytics:", analyticsError);
+    }
+
     return NextResponse.json({ improvedText });
   } catch (error) {
     console.error("Error improving text:", error);

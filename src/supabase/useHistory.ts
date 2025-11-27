@@ -28,17 +28,12 @@ export function useHistory() {
 
       if (user) {
         setIsAuthenticated(true);
-        console.log("Fetching requests for user:", user.id);
-        console.log("Supabase URL:", process.env.NEXT_PUBLIC_SUPABASE_URL);
-        console.log("Supabase Key exists:", !!process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
 
-        const { data, error, status } = await supabase
+        const { data } = await supabase
           .from("requests")
           .select("*")
           .order("created_at", { ascending: false })
           .limit(50);
-
-        console.log("Requests query result:", { data, error, status });
 
         if (data) {
           setEntries(
