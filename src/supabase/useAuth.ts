@@ -2,7 +2,12 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "./client";
-import type { User, AuthError } from "@supabase/supabase-js";
+import type {
+  User,
+  AuthError,
+  Session,
+  AuthChangeEvent,
+} from "@supabase/supabase-js";
 
 type AuthResult = {
   error: AuthError | null;
@@ -28,7 +33,10 @@ export function useAuth() {
           setTimeout(() => reject(new Error("Profile query timeout")), 3000)
         );
 
-        const { data: profile } = await Promise.race([profilePromise, timeoutPromise]);
+        const { data: profile } = await Promise.race([
+          profilePromise,
+          timeoutPromise,
+        ]);
         return profile?.is_admin || false;
       } catch {
         return false;
@@ -53,18 +61,20 @@ export function useAuth() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_, session) => {
-      setUser(session?.user ?? null);
+    } = supabase.auth.onAuthStateChange(
+      async (_event: AuthChangeEvent, session: Session | null) => {
+        setUser(session?.user ?? null);
 
-      if (session?.user) {
-        const adminStatus = await fetchProfile(session.user.id);
-        setIsAdmin(adminStatus);
-      } else {
-        setIsAdmin(false);
+        if (session?.user) {
+          const adminStatus = await fetchProfile(session.user.id);
+          setIsAdmin(adminStatus);
+        } else {
+          setIsAdmin(false);
+        }
+
+        setIsLoading(false);
       }
-
-      setIsLoading(false);
-    });
+    );
 
     return () => subscription.unsubscribe();
   }, [supabase]);
