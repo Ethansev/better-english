@@ -13,43 +13,35 @@ type AuthResult = {
   error: AuthError | null;
 };
 
+function getCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(new RegExp(`(^| )${name}=([^;]+)`));
+  return match ? match[2] : null;
+}
+
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [hasMounted, setHasMounted] = useState(false);
   const supabase = createClient();
 
+  // Read cookie immediately on mount for instant admin status
   useEffect(() => {
-    const fetchProfile = async (userId: string): Promise<boolean> => {
-      try {
-        const profilePromise = supabase
-          .from("profiles")
-          .select("is_admin")
-          .eq("id", userId)
-          .single();
+    setHasMounted(true);
+    const cookieAdmin = getCookie("is_admin") === "true";
+    setIsAdmin(cookieAdmin);
+  }, []);
 
-        // Timeout to prevent hanging on slow/stuck queries
-        const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("Profile query timeout")), 3000)
-        );
-
-        const { data: profile } = await Promise.race([
-          profilePromise,
-          timeoutPromise,
-        ]);
-        return profile?.is_admin || false;
-      } catch {
-        return false;
-      }
-    };
-
+  useEffect(() => {
     const loadUser = async () => {
       const { data } = await supabase.auth.getUser();
       setUser(data.user);
 
+      // Admin status is set by middleware via cookie, just read it
       if (data.user) {
-        const adminStatus = await fetchProfile(data.user.id);
-        setIsAdmin(adminStatus);
+        const cookieAdmin = getCookie("is_admin") === "true";
+        setIsAdmin(cookieAdmin);
       } else {
         setIsAdmin(false);
       }
@@ -66,8 +58,10 @@ export function useAuth() {
         setUser(session?.user ?? null);
 
         if (session?.user) {
-          const adminStatus = await fetchProfile(session.user.id);
-          setIsAdmin(adminStatus);
+          // Cookie will be updated by middleware on next request
+          // For now, read current cookie value
+          const cookieAdmin = getCookie("is_admin") === "true";
+          setIsAdmin(cookieAdmin);
         } else {
           setIsAdmin(false);
         }
@@ -94,6 +88,8 @@ export function useAuth() {
   }, [supabase.auth]);
 
   const signOut = useCallback(async () => {
+    // Clear the is_admin cookie
+    document.cookie = "is_admin=; path=/; max-age=0";
     await supabase.auth.signOut();
   }, [supabase.auth]);
 
@@ -128,7 +124,7 @@ export function useAuth() {
 
   return {
     user,
-    isLoading,
+    isLoading: isLoading || !hasMounted,
     isAuthenticated: !!user,
     isAdmin,
     signInWithGoogle,

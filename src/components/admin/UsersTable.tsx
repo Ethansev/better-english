@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 interface UserData {
   id: string;
   email: string | null;
@@ -85,38 +87,53 @@ export function UsersTable({ users }: UsersTableProps) {
             {users.map((user) => (
               <tr
                 key={user.id}
-                className="hover:bg-gray-50 dark:hover:bg-gray-750"
+                className="hover:bg-gray-50 dark:hover:bg-gray-750 cursor-pointer"
               >
                 <td className="px-6 py-4 whitespace-nowrap">
-                  {user.isAnonymous ? (
-                    <div className="flex items-center">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
-                        Anonymous
-                      </span>
-                      <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">
-                        {user.ipAddress ? maskIP(user.ipAddress) : "Unknown IP"}
-                      </span>
-                    </div>
-                  ) : (
-                    <div>
-                      {user.name && (
-                        <div className="text-sm font-medium text-gray-900 dark:text-white">
-                          {user.name}
-                        </div>
-                      )}
-                      <div className="text-sm text-gray-500 dark:text-gray-400">
-                        {user.email}
+                  <Link
+                    href={`/admin/users/${encodeURIComponent(user.id)}`}
+                    className="block"
+                  >
+                    {user.isAnonymous ? (
+                      <div className="flex items-center">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+                          Anonymous
+                        </span>
+                        <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">
+                          {user.ipAddress ? maskIP(user.ipAddress) : "Unknown IP"}
+                        </span>
                       </div>
-                    </div>
-                  )}
+                    ) : (
+                      <div>
+                        {user.name && (
+                          <div className="text-sm font-medium text-gray-900 dark:text-white">
+                            {user.name}
+                          </div>
+                        )}
+                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                          {user.email}
+                        </div>
+                      </div>
+                    )}
+                  </Link>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <span className="text-sm font-medium text-gray-900 dark:text-white">
-                    {user.count.toLocaleString()}
-                  </span>
+                  <Link
+                    href={`/admin/users/${encodeURIComponent(user.id)}`}
+                    className="block"
+                  >
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">
+                      {user.count.toLocaleString()}
+                    </span>
+                  </Link>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                  {formatRelativeTime(user.lastActive)}
+                  <Link
+                    href={`/admin/users/${encodeURIComponent(user.id)}`}
+                    className="block"
+                  >
+                    {formatRelativeTime(user.lastActive)}
+                  </Link>
                 </td>
               </tr>
             ))}

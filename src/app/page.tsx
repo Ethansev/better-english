@@ -7,6 +7,8 @@ import { ResultCard } from "@/components/ResultCard";
 import { HistoryList } from "@/components/HistoryList";
 import { AuthButton } from "@/components/AuthButton";
 import { useHistory } from "@/supabase/useHistory";
+import { useAuth } from "@/supabase/useAuth";
+import Link from "next/link";
 
 export default function Home() {
   const [inputText, setInputText] = useState("");
@@ -15,6 +17,7 @@ export default function Home() {
   const [error, setError] = useState("");
 
   const { entries, addEntry, deleteEntry, clearAll } = useHistory();
+  const { isAdmin } = useAuth();
 
   const handleImprove = async (textToImprove?: string) => {
     const text = textToImprove || inputText;
@@ -61,6 +64,14 @@ export default function Home() {
             BetterEnglish
           </h1>
           <div className="flex items-center gap-3">
+            {isAdmin && (
+              <Link
+                href="/admin"
+                className="px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                Admin
+              </Link>
+            )}
             <AuthButton />
             <ThemeToggle />
           </div>

@@ -37,20 +37,38 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
-  // Admin route protection
-  if (request.nextUrl.pathname.startsWith("/admin")) {
-    if (!user) {
-      return NextResponse.redirect(new URL("/login", request.url));
-    }
-
-    // Check if user is admin
+  // Check admin status for authenticated users and set cookie
+  let isAdmin = false;
+  if (user) {
     const { data: profile } = await supabase
       .from("profiles")
       .select("is_admin")
       .eq("id", user.id)
       .single();
 
-    if (!profile?.is_admin) {
+    isAdmin = profile?.is_admin ?? false;
+
+    // Set is_admin cookie for client-side access
+    supabaseResponse.cookies.set("is_admin", String(isAdmin), {
+      path: "/",
+      maxAge: 60 * 60 * 24, // 24 hours
+      sameSite: "lax",
+    });
+  } else {
+    // Clear is_admin cookie if not authenticated
+    supabaseResponse.cookies.set("is_admin", "", {
+      path: "/",
+      maxAge: 0,
+    });
+  }
+
+  // Admin route protection
+  if (request.nextUrl.pathname.startsWith("/admin")) {
+    if (!user) {
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
+
+    if (!isAdmin) {
       return NextResponse.redirect(new URL("/", request.url));
     }
   }

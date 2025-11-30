@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useAuth } from "@/supabase/useAuth";
 
 export function AuthButton() {
-  const { user, isLoading, signOut } = useAuth();
+  const { isAuthenticated, isLoading, signOut } = useAuth();
 
   if (isLoading) {
     return (
@@ -12,7 +12,7 @@ export function AuthButton() {
     );
   }
 
-  if (user) {
+  if (isAuthenticated) {
     return (
       <button
         onClick={() => signOut()}
