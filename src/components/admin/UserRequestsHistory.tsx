@@ -29,10 +29,8 @@ function formatDateTime(dateString: string): string {
 
 function RequestCard({
   request,
-  isAnonymous,
 }: {
   request: RequestData;
-  isAnonymous: boolean;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const hasFullText = request.original_text && request.improved_text;
@@ -155,7 +153,6 @@ export function UserRequestsHistory({
           <RequestCard
             key={request.id}
             request={request}
-            isAnonymous={isAnonymous}
           />
         ))}
       </div>

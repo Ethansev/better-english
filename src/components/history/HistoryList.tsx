@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { HistoryItem } from "./HistoryItem";
 import { HistoryEntry } from "@/store/historyStore";
 
@@ -13,6 +13,23 @@ interface HistoryListProps {
 export function HistoryList({ entries, onDelete, onClearAll }: HistoryListProps) {
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const handleExitSelectMode = useCallback(() => {
+    setIsSelectMode(false);
+    setSelectedIds(new Set());
+  }, []);
+
+  // Handle Escape key to exit select mode
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isSelectMode) {
+        handleExitSelectMode();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isSelectMode, handleExitSelectMode]);
 
   if (entries.length === 0) {
     return null;
@@ -33,23 +50,6 @@ export function HistoryList({ entries, onDelete, onClearAll }: HistoryListProps)
   const handleEnterSelectMode = () => {
     setIsSelectMode(true);
   };
-
-  const handleExitSelectMode = () => {
-    setIsSelectMode(false);
-    setSelectedIds(new Set());
-  };
-
-  // Handle Escape key to exit select mode
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isSelectMode) {
-        handleExitSelectMode();
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [isSelectMode]);
 
   const handleDeleteSelected = () => {
     selectedIds.forEach((id) => onDelete(id));

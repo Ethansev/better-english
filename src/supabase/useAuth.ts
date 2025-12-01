@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useSyncExternalStore } from "react";
 import { createClient } from "./client";
 import type {
   User,
@@ -19,19 +19,31 @@ function getCookie(name: string): string | null {
   return match ? match[2] : null;
 }
 
+// Custom hook to check if component is mounted (hydrated)
+function useIsMounted() {
+  return useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
+}
+
+// Subscribe to cookie value for admin status
+function useAdminCookie() {
+  return useSyncExternalStore(
+    () => () => {},
+    () => getCookie("is_admin") === "true",
+    () => false
+  );
+}
+
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [hasMounted, setHasMounted] = useState(false);
+  const hasMounted = useIsMounted();
+  const cookieAdmin = useAdminCookie();
   const supabase = createClient();
-
-  // Read cookie immediately on mount for instant admin status
-  useEffect(() => {
-    setHasMounted(true);
-    const cookieAdmin = getCookie("is_admin") === "true";
-    setIsAdmin(cookieAdmin);
-  }, []);
 
   useEffect(() => {
     const loadUser = async () => {
@@ -40,8 +52,8 @@ export function useAuth() {
 
       // Admin status is set by middleware via cookie, just read it
       if (data.user) {
-        const cookieAdmin = getCookie("is_admin") === "true";
-        setIsAdmin(cookieAdmin);
+        const cookieAdminValue = getCookie("is_admin") === "true";
+        setIsAdmin(cookieAdminValue);
       } else {
         setIsAdmin(false);
       }
@@ -60,8 +72,8 @@ export function useAuth() {
         if (session?.user) {
           // Cookie will be updated by middleware on next request
           // For now, read current cookie value
-          const cookieAdmin = getCookie("is_admin") === "true";
-          setIsAdmin(cookieAdmin);
+          const cookieAdminValue = getCookie("is_admin") === "true";
+          setIsAdmin(cookieAdminValue);
         } else {
           setIsAdmin(false);
         }
@@ -122,11 +134,14 @@ export function useAuth() {
     [supabase.auth]
   );
 
+  // Use cookie value for immediate admin status, or state for async updates
+  const effectiveIsAdmin = hasMounted ? (isAdmin || cookieAdmin) : false;
+
   return {
     user,
     isLoading: isLoading || !hasMounted,
     isAuthenticated: !!user,
-    isAdmin,
+    isAdmin: effectiveIsAdmin,
     signInWithGoogle,
     signInWithGitHub,
     signUpWithEmail,
