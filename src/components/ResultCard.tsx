@@ -62,7 +62,7 @@ export function ResultCard({ result, isLoading }: ResultCardProps) {
         </div>
         <button
           onClick={handleCopy}
-          className="px-3 py-1.5 text-sm rounded-lg bg-card-border/50 hover:bg-card-border transition-all duration-200 flex items-center gap-1.5 hover:scale-105 active:scale-95"
+          className="px-3 py-1.5 text-sm rounded-lg bg-card-border/50 hover:bg-card-border transition-all duration-200 flex items-center gap-1.5 hover:scale-105 active:scale-95 cursor-pointer"
         >
           {copied ? (
             <>

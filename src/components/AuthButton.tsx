@@ -16,7 +16,7 @@ export function AuthButton() {
     return (
       <button
         onClick={() => signOut()}
-        className="text-sm text-foreground/60 hover:text-foreground transition-colors px-3 py-1.5"
+        className="text-sm text-foreground/60 hover:text-foreground transition-colors px-3 py-1.5 cursor-pointer"
       >
         Sign out
       </button>

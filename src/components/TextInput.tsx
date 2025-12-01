@@ -46,7 +46,7 @@ export function TextInput({ value, onChange, onSubmit, onPaste, isLoading }: Tex
         <button
           onClick={onSubmit}
           disabled={isLoading || !value.trim()}
-          className="px-6 py-2.5 bg-primary text-white font-medium rounded-lg hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:scale-105 active:scale-95 disabled:hover:scale-100"
+          className="px-6 py-2.5 bg-primary text-white font-medium rounded-lg hover:bg-primary-hover disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed transition-all duration-200 hover:scale-105 active:scale-95 disabled:hover:scale-100"
         >
           {isLoading ? (
             <span className="flex items-center gap-2">

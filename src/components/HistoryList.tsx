@@ -23,7 +23,7 @@ export function HistoryList({ entries, onDelete, onClearAll }: HistoryListProps)
         </h3>
         <button
           onClick={onClearAll}
-          className="text-sm text-red-500 hover:text-red-600 transition-colors hover:underline"
+          className="text-sm text-red-500 hover:text-red-600 transition-colors hover:underline cursor-pointer"
         >
           Clear all
         </button>

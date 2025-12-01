@@ -59,7 +59,7 @@ export function HistoryItem({ entry, onDelete }: HistoryItemProps) {
           {(entry.original.length > 100 || entry.improved.length > 100) && (
             <button
               onClick={() => setExpanded(!expanded)}
-              className="text-xs text-primary hover:text-primary-hover mt-2 transition-colors"
+              className="text-xs text-primary hover:text-primary-hover mt-2 transition-colors cursor-pointer"
             >
               {expanded ? "Show less" : "Show more"}
             </button>
@@ -69,14 +69,14 @@ export function HistoryItem({ entry, onDelete }: HistoryItemProps) {
         <div className="flex flex-col gap-2">
           <button
             onClick={handleCopy}
-            className="px-3 py-1.5 text-xs rounded-lg bg-card-border/50 hover:bg-card-border transition-all duration-200 hover:scale-105 active:scale-95"
+            className="px-3 py-1.5 text-xs rounded-lg bg-card-border/50 hover:bg-card-border transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
             title="Copy improved text"
           >
             {copied ? "✓" : "📋"}
           </button>
           <button
             onClick={() => onDelete(entry.id)}
-            className="px-3 py-1.5 text-xs rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-500 transition-all duration-200 hover:scale-105 active:scale-95"
+            className="px-3 py-1.5 text-xs rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-500 transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
             title="Delete"
           >
             🗑️
