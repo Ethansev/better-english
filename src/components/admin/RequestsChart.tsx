@@ -1,5 +1,17 @@
 "use client";
 
+import { useMemo, useSyncExternalStore } from "react";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
+import { useTheme } from "next-themes";
+
 interface DailyData {
   date: string;
   count: number;
@@ -9,7 +21,71 @@ interface RequestsChartProps {
   data: DailyData[];
 }
 
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: Array<{ value: number }>;
+  label?: string;
+}
+
+function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
+  if (!active || !payload || !payload.length || !label) {
+    return null;
+  }
+
+  const date = new Date(label);
+  const formattedDate = date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+
+  return (
+    <div className="bg-gray-900 text-white text-sm px-3 py-2 rounded shadow-lg">
+      <p className="font-medium">{payload[0].value} requests</p>
+      <p className="text-gray-300 text-xs">{formattedDate}</p>
+    </div>
+  );
+}
+
+function formatXAxisDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function calculateInterval(dataLength: number): number {
+  if (dataLength <= 7) return 0;
+  if (dataLength <= 14) return 1;
+  if (dataLength <= 30) return 4;
+  return Math.floor(dataLength / 6);
+}
+
+// Hook to detect client-side hydration without setState in useEffect
+function useHydrated() {
+  return useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
+}
+
 export function RequestsChart({ data }: RequestsChartProps) {
+  const { resolvedTheme } = useTheme();
+  const mounted = useHydrated();
+
+  const isDark = resolvedTheme === "dark";
+
+  const colors = useMemo(
+    () => ({
+      bar: isDark ? "#60a5fa" : "#3b82f6", // blue-400 / blue-500
+      grid: isDark ? "#374151" : "#e5e7eb", // gray-700 / gray-200
+      axis: isDark ? "#9ca3af" : "#6b7280", // gray-400 / gray-500
+    }),
+    [isDark]
+  );
+
   if (data.length === 0) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
@@ -23,62 +99,56 @@ export function RequestsChart({ data }: RequestsChartProps) {
     );
   }
 
-  const maxCount = Math.max(...data.map((d) => d.count), 1);
+  if (!mounted) {
+    return (
+      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+          Requests per Day
+        </h3>
+        <div className="h-[250px] flex items-center justify-center">
+          <div className="animate-pulse bg-gray-200 dark:bg-gray-700 rounded w-full h-full" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
       <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
         Requests per Day
       </h3>
-      <div className="flex items-end gap-1 h-40">
-        {data.map((item) => {
-          const height = (item.count / maxCount) * 100;
-          const date = new Date(item.date);
-          const formattedDate = date.toLocaleDateString("en-US", {
-            month: "short",
-            day: "numeric",
-          });
-
-          return (
-            <div
-              key={item.date}
-              className="flex-1 flex flex-col items-center gap-1 group"
-            >
-              <div className="relative w-full flex justify-center">
-                <div
-                  className="w-full max-w-8 bg-blue-500 dark:bg-blue-400 rounded-t transition-all group-hover:bg-blue-600 dark:group-hover:bg-blue-300"
-                  style={{ height: `${Math.max(height, 4)}%` }}
-                  title={`${item.count} requests on ${formattedDate}`}
-                />
-                <div className="absolute -top-6 hidden group-hover:block bg-gray-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap z-10">
-                  {item.count} requests
-                </div>
-              </div>
-              {data.length <= 14 && (
-                <span className="text-xs text-gray-500 dark:text-gray-400 transform -rotate-45 origin-top-left w-10 truncate">
-                  {formattedDate}
-                </span>
-              )}
-            </div>
-          );
-        })}
-      </div>
-      {data.length > 14 && (
-        <div className="flex justify-between mt-2 text-xs text-gray-500 dark:text-gray-400">
-          <span>
-            {new Date(data[0].date).toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-            })}
-          </span>
-          <span>
-            {new Date(data[data.length - 1].date).toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-            })}
-          </span>
-        </div>
-      )}
+      <ResponsiveContainer width="100%" height={250}>
+        <BarChart
+          data={data}
+          margin={{ top: 10, right: 10, left: -10, bottom: 40 }}
+        >
+          <CartesianGrid
+            strokeDasharray="3 3"
+            stroke={colors.grid}
+            vertical={false}
+          />
+          <XAxis
+            dataKey="date"
+            tickFormatter={formatXAxisDate}
+            tick={{ fill: colors.axis, fontSize: 12 }}
+            angle={-45}
+            textAnchor="end"
+            height={60}
+            interval={calculateInterval(data.length)}
+            axisLine={{ stroke: colors.grid }}
+            tickLine={{ stroke: colors.grid }}
+          />
+          <YAxis
+            tick={{ fill: colors.axis, fontSize: 12 }}
+            allowDecimals={false}
+            axisLine={{ stroke: colors.grid }}
+            tickLine={{ stroke: colors.grid }}
+            width={40}
+          />
+          <Tooltip content={<CustomTooltip />} cursor={{ fill: "transparent" }} />
+          <Bar dataKey="count" fill={colors.bar} radius={[4, 4, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   );
 }

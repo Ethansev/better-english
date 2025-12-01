@@ -13,7 +13,6 @@ interface RequestData {
 
 interface UserRequestsHistoryProps {
   requests: RequestData[];
-  isAnonymous: boolean;
 }
 
 function formatDateTime(dateString: string): string {
@@ -117,7 +116,6 @@ function RequestCard({
 
 export function UserRequestsHistory({
   requests,
-  isAnonymous,
 }: UserRequestsHistoryProps) {
   if (requests.length === 0) {
     return (
@@ -139,14 +137,6 @@ export function UserRequestsHistory({
           Request History ({requests.length})
         </h3>
       </div>
-
-      {isAnonymous && (
-        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
-          <p className="text-sm text-amber-800 dark:text-amber-200">
-            Text content is not stored for anonymous users. Only character counts and timestamps are available.
-          </p>
-        </div>
-      )}
 
       <div className="space-y-2">
         {requests.map((request) => (

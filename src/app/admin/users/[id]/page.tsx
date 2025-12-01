@@ -218,10 +218,7 @@ export default function UserDetailPage() {
             <RequestsChart data={data.chartData} />
 
             {/* Request history */}
-            <UserRequestsHistory
-              requests={data.requests}
-              isAnonymous={data.user.isAnonymous}
-            />
+            <UserRequestsHistory requests={data.requests} />
           </div>
         ) : null}
       </main>

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/supabase/useAuth";
 import { StatsCard } from "@/components/admin/StatsCard";
 import { RequestsChart } from "@/components/admin/RequestsChart";
+import { UserBreakdownChart } from "@/components/admin/UserBreakdownChart";
 import { UsersTable } from "@/components/admin/UsersTable";
 import Link from "next/link";
 
@@ -188,7 +189,11 @@ export default function AdminPage() {
             </div>
 
             {/* Chart */}
-            <RequestsChart data={data.dailyRequests} />
+            {dateRange === "today" ? (
+              <UserBreakdownChart users={data.users} />
+            ) : (
+              <RequestsChart data={data.dailyRequests} />
+            )}
 
             {/* Users table */}
             <UsersTable users={data.users} />

@@ -84,6 +84,9 @@ export async function POST(request: NextRequest) {
       ip_address: ip,
       original_text_length: text.length,
       improved_text_length: improvedText.length,
+      // Store full text only for anonymous users (authenticated users have it in requests table)
+      original_text: user ? null : text,
+      improved_text: user ? null : improvedText,
     });
 
     if (analyticsError) {

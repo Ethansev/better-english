@@ -162,8 +162,21 @@ export async function GET(
       .map(([date, count]) => ({ date, count }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
-    // Merge analytics with full text requests by timestamp proximity
+    // Merge analytics with full text requests
     const requests = analytics.map((a) => {
+      // For anonymous users, text is stored directly in analytics table
+      // For authenticated users, match with requests table by timestamp proximity
+      if (isAnonymous) {
+        return {
+          id: a.id,
+          original_text: a.original_text || null,
+          improved_text: a.improved_text || null,
+          original_text_length: a.original_text_length,
+          improved_text_length: a.improved_text_length,
+          created_at: a.created_at,
+        };
+      }
+
       // Find matching full text request within 2 seconds
       const matchingRequest = fullTextRequests.find((r) => {
         const timeDiff = Math.abs(
