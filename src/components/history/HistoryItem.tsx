@@ -41,8 +41,12 @@ export function HistoryItem({ entry, onDelete, isSelectMode, isSelected, onToggl
   return (
     <div
       onClick={handleCardClick}
-      className={`p-4 rounded-xl border border-card-border bg-card transition-all duration-200 flex flex-col h-full group hover:border-primary/30 hover:shadow-md ${
+      className={`p-4 rounded-xl border-2 bg-card transition-all duration-200 flex flex-col h-full group hover:shadow-md ${
         isSelectMode ? 'cursor-pointer' : ''
+      } ${
+        isSelected
+          ? 'border-primary bg-primary/5'
+          : 'border-card-border hover:border-primary/30'
       }`}
     >
       {/* Header with timestamp and actions */}
