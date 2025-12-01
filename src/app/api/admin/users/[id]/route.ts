@@ -145,13 +145,16 @@ export async function GET(
       const date = new Date(a.created_at);
       let key: string;
 
+      // Use local date, not UTC
+      const localDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+
       if (useHourly) {
         // Hourly buckets: "2024-11-28 14:00"
         const hour = date.getHours().toString().padStart(2, "0");
-        key = `${date.toISOString().split("T")[0]} ${hour}:00`;
+        key = `${localDate} ${hour}:00`;
       } else {
         // Daily buckets: "2024-11-28"
-        key = date.toISOString().split("T")[0];
+        key = localDate;
       }
 
       chartData[key] = (chartData[key] || 0) + 1;

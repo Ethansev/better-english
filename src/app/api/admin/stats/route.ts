@@ -91,10 +91,11 @@ export async function GET(request: NextRequest) {
     }
     const avgPerDay = Math.round(totalRequests / daysInRange);
 
-    // Group by day for chart
+    // Group by day for chart (using local date, not UTC)
     const dailyData: Record<string, number> = {};
     analytics?.forEach((a) => {
-      const date = new Date(a.created_at).toISOString().split("T")[0];
+      const d = new Date(a.created_at);
+      const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
       dailyData[date] = (dailyData[date] || 0) + 1;
     });
 

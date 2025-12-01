@@ -32,7 +32,8 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
     return null;
   }
 
-  const date = new Date(label);
+  // Parse as local time by appending T00:00:00 to avoid UTC conversion
+  const date = new Date(label + "T00:00:00");
   const formattedDate = date.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
@@ -48,7 +49,8 @@ function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
 }
 
 function formatXAxisDate(dateStr: string): string {
-  const date = new Date(dateStr);
+  // Parse as local time by appending T00:00:00 to avoid UTC conversion
+  const date = new Date(dateStr + "T00:00:00");
   return date.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
