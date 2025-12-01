@@ -4,11 +4,11 @@ import { useState } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { TextInput } from "@/components/TextInput";
 import { ResultCard } from "@/components/ResultCard";
-import { HistoryList } from "@/components/HistoryList";
 import { AuthButton } from "@/components/AuthButton";
 import { useHistory } from "@/supabase/useHistory";
 import { useAuth } from "@/supabase/useAuth";
 import Link from "next/link";
+import { HistoryList } from "@/components/history/HistoryList";
 
 export default function Home() {
   const [inputText, setInputText] = useState("");
@@ -105,7 +105,9 @@ export default function Home() {
 
           <ResultCard result={result} isLoading={isLoading} />
         </div>
+      </main>
 
+      <section className="max-w-6xl mx-auto px-4 pb-12">
         <HistoryList
           entries={entries}
           onDelete={deleteEntry}
@@ -115,7 +117,7 @@ export default function Home() {
         <footer className="mt-16 text-center text-sm text-foreground/40">
           <p>Made by Ethan :)</p>
         </footer>
-      </main>
+      </section>
     </div>
   );
 }
