@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { buildOpenAIRequestBody } from "@/lib/openai";
+import { buildOpenAIRequestBody, type Tone } from "@/lib/openai";
 import { createClient } from "@/supabase/server";
 
 export async function POST(request: NextRequest) {
@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
       data: { user },
     } = await supabase.auth.getUser();
 
-    const { text } = await request.json();
+    const { text, tone = "casual" } = await request.json() as { text: string; tone?: Tone };
 
     if (!text || typeof text !== "string") {
       return NextResponse.json(
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
       },
-      body: JSON.stringify(buildOpenAIRequestBody(text)),
+      body: JSON.stringify(buildOpenAIRequestBody(text, tone)),
     });
 
     if (!response.ok) {

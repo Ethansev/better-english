@@ -7,6 +7,8 @@ import { ResultCard } from "@/components/ResultCard";
 import { AuthButton } from "@/components/AuthButton";
 import { useHistory } from "@/supabase/useHistory";
 import { useAuth } from "@/supabase/useAuth";
+import { usePreferences } from "@/hooks/usePreferences";
+import { ToneSlider } from "@/components/ToneSlider";
 import Link from "next/link";
 import { HistoryList } from "@/components/history/HistoryList";
 
@@ -18,6 +20,7 @@ export default function Home() {
 
   const { entries, addEntry, deleteEntry, clearAll } = useHistory();
   const { isAdmin } = useAuth();
+  const { tone, setTone } = usePreferences();
 
   const handleImprove = async (textToImprove?: string) => {
     const text = textToImprove || inputText;
@@ -33,7 +36,7 @@ export default function Home() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, tone }),
       });
 
       const data = await response.json();
@@ -89,6 +92,10 @@ export default function Home() {
         </div>
 
         <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <ToneSlider value={tone} onChange={setTone} />
+          </div>
+
           <TextInput
             value={inputText}
             onChange={setInputText}
