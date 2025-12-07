@@ -1,38 +1,39 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/supabase/useAuth";
-import { StatsCard } from "@/components/admin/StatsCard";
-import { RequestsChart } from "@/components/admin/RequestsChart";
-import { UserBreakdownChart } from "@/components/admin/UserBreakdownChart";
-import { UsersTable } from "@/components/admin/UsersTable";
 import { AllRequestsHistory } from "@/components/admin/AllRequestsHistory";
-import { usePreferencesStore } from "@/store/preferencesStore";
 import {
   type DateRange,
-  type AdminData,
   type RequestData,
   dateRangeOptions,
 } from "@/types/admin";
 import Link from "next/link";
 
-export default function AdminPage() {
+const LIMIT = 25;
+
+export default function RequestsPage() {
   const { user, isLoading: authLoading, signOut } = useAuth();
-  const [data, setData] = useState<AdminData | null>(null);
+  const [requests, setRequests] = useState<RequestData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<DateRange>("7d");
+  const [hasMore, setHasMore] = useState(false);
+  const [total, setTotal] = useState(0);
 
-  const { adminUsersSortColumn, adminUsersSortDirection, setAdminUsersSort } =
-    usePreferencesStore();
-
-  const [recentRequests, setRecentRequests] = useState<RequestData[]>([]);
-
-  useEffect(() => {
-    async function fetchStats() {
+  const fetchRequests = useCallback(
+    async (offset: number = 0, append: boolean = false) => {
       try {
-        setIsLoading(true);
-        const response = await fetch(`/api/admin/stats?range=${dateRange}`);
+        if (append) {
+          setIsLoadingMore(true);
+        } else {
+          setIsLoading(true);
+        }
+
+        const response = await fetch(
+          `/api/admin/requests?range=${dateRange}&limit=${LIMIT}&offset=${offset}`
+        );
 
         if (!response.ok) {
           if (response.status === 401) {
@@ -40,46 +41,40 @@ export default function AdminPage() {
           } else if (response.status === 403) {
             setError("You do not have permission to view this page");
           } else {
-            setError("Failed to load analytics data");
+            setError("Failed to load requests");
           }
           return;
         }
 
         const result = await response.json();
-        setData(result);
+
+        if (append) {
+          setRequests((prev) => [...prev, ...result.requests]);
+        } else {
+          setRequests(result.requests);
+        }
+        setHasMore(result.hasMore);
+        setTotal(result.total);
         setError(null);
       } catch {
-        setError("Failed to load analytics data");
+        setError("Failed to load requests");
       } finally {
         setIsLoading(false);
+        setIsLoadingMore(false);
       }
-    }
+    },
+    [dateRange]
+  );
 
-    if (!authLoading && user) {
-      fetchStats();
-    }
-  }, [authLoading, user, dateRange]);
-
-  // Fetch recent requests separately
   useEffect(() => {
-    async function fetchRecentRequests() {
-      try {
-        const response = await fetch(
-          `/api/admin/requests?range=${dateRange}&limit=10`
-        );
-        if (response.ok) {
-          const result = await response.json();
-          setRecentRequests(result.requests);
-        }
-      } catch {
-        // Silently fail for recent requests
-      }
-    }
-
     if (!authLoading && user) {
-      fetchRecentRequests();
+      fetchRequests(0, false);
     }
-  }, [authLoading, user, dateRange]);
+  }, [authLoading, user, dateRange, fetchRequests]);
+
+  const handleLoadMore = () => {
+    fetchRequests(requests.length, true);
+  };
 
   if (authLoading) {
     return (
@@ -114,13 +109,13 @@ export default function AdminPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
           <div className="flex items-center gap-4">
             <Link
-              href="/"
+              href="/admin"
               className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
             >
-              &larr; Back
+              ← Dashboard
             </Link>
             <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
-              Admin Dashboard
+              All Requests
             </h1>
           </div>
           <button
@@ -135,7 +130,7 @@ export default function AdminPage() {
       {/* Main content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Date range selector */}
-        <div className="mb-6">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap gap-2">
             {dateRangeOptions.map((option) => (
               <button
@@ -151,68 +146,27 @@ export default function AdminPage() {
               </button>
             ))}
           </div>
+          {!isLoading && (
+            <span className="text-sm text-gray-500 dark:text-gray-400">
+              {total.toLocaleString()} total requests
+            </span>
+          )}
         </div>
 
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <div className="animate-pulse text-gray-500 dark:text-gray-400">
-              Loading analytics...
+              Loading requests...
             </div>
           </div>
-        ) : data ? (
-          <div className="space-y-6">
-            {/* Stats cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatsCard
-                title="Total Requests"
-                value={data.stats.totalRequests}
-              />
-              <StatsCard title="Avg per Day" value={data.stats.avgPerDay} />
-              <StatsCard
-                title="Unique Users"
-                value={data.stats.uniqueUsers}
-                subtitle={`+ ${data.stats.uniqueIPs} anonymous IPs`}
-              />
-              <StatsCard
-                title="Anonymous Requests"
-                value={data.stats.anonymousRequests}
-              />
-            </div>
-
-            {/* Chart */}
-            {dateRange === "today" ? (
-              <UserBreakdownChart users={data.users} />
-            ) : (
-              <RequestsChart data={data.dailyRequests} />
-            )}
-
-            {/* Users table */}
-            <UsersTable
-              users={data.users}
-              defaultSortColumn={adminUsersSortColumn}
-              defaultSortDirection={adminUsersSortDirection}
-              onSortChange={setAdminUsersSort}
-            />
-
-            {/* Recent requests */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-                  Recent Requests
-                </h3>
-                <Link
-                  href="/admin/requests"
-                  className="text-sm text-blue-500 hover:text-blue-600 dark:text-blue-400"
-                >
-                  View All →
-                </Link>
-              </div>
-              <div className="p-4">
-                <AllRequestsHistory requests={recentRequests} />
-              </div>
-            </div>
-          </div>
-        ) : null}
+        ) : (
+          <AllRequestsHistory
+            requests={requests}
+            showLoadMore={hasMore}
+            onLoadMore={handleLoadMore}
+            isLoadingMore={isLoadingMore}
+          />
+        )}
       </main>
     </div>
   );

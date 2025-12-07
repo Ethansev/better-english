@@ -3,21 +3,12 @@
 import { useMemo, useSyncExternalStore } from "react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { useTheme } from "next-themes";
-
-interface UserData {
-  id: string;
-  email: string | null;
-  name: string | null;
-  isAnonymous: boolean;
-  ipAddress: string | null;
-  count: number;
-}
+import type { UserData } from "@/types/admin";
 
 interface UserBreakdownChartProps {
   users: UserData[];
 }
 
-// Color palette for pie chart slices
 const COLORS = [
   "#3b82f6", // blue-500
   "#10b981", // emerald-500
@@ -145,9 +136,7 @@ export function UserBreakdownChart({ users }: UserBreakdownChartProps) {
               <p className="text-3xl font-bold text-gray-900 dark:text-white">
                 {total}
               </p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                total
-              </p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">total</p>
             </div>
           </div>
         </div>

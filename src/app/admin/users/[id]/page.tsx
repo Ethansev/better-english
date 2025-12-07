@@ -6,52 +6,12 @@ import { useAuth } from "@/supabase/useAuth";
 import { StatsCard } from "@/components/admin/StatsCard";
 import { RequestsChart } from "@/components/admin/RequestsChart";
 import { UserRequestsHistory } from "@/components/admin/UserRequestsHistory";
+import {
+  type DateRange,
+  type UserDetailData,
+  dateRangeOptions,
+} from "@/types/admin";
 import Link from "next/link";
-
-type DateRange = "today" | "7d" | "14d" | "30d" | "90d" | "all";
-
-interface UserInfo {
-  id: string;
-  email: string | null;
-  name: string | null;
-  isAnonymous: boolean;
-  ipAddress: string | null;
-}
-
-interface Stats {
-  totalRequests: number;
-  avgPerDay: number;
-}
-
-interface ChartData {
-  date: string;
-  count: number;
-}
-
-interface RequestData {
-  id: string;
-  original_text: string | null;
-  improved_text: string | null;
-  original_text_length: number;
-  improved_text_length: number;
-  created_at: string;
-}
-
-interface UserDetailData {
-  user: UserInfo;
-  stats: Stats;
-  chartData: ChartData[];
-  requests: RequestData[];
-}
-
-const dateRangeOptions: { value: DateRange; label: string }[] = [
-  { value: "today", label: "Today" },
-  { value: "7d", label: "7 days" },
-  { value: "14d", label: "14 days" },
-  { value: "30d", label: "30 days" },
-  { value: "90d", label: "90 days" },
-  { value: "all", label: "All Time" },
-];
 
 function maskIP(ip: string): string {
   const parts = ip.split(".");
@@ -153,7 +113,9 @@ export default function UserDetailPage() {
                     Anonymous
                   </span>
                   <span className="text-lg text-gray-600 dark:text-gray-300">
-                    {data.user.ipAddress ? maskIP(data.user.ipAddress) : "Unknown IP"}
+                    {data.user.ipAddress
+                      ? maskIP(data.user.ipAddress)
+                      : "Unknown IP"}
                   </span>
                 </div>
               ) : (
@@ -208,10 +170,7 @@ export default function UserDetailPage() {
                 title="Total Requests"
                 value={data.stats.totalRequests}
               />
-              <StatsCard
-                title="Avg per Day"
-                value={data.stats.avgPerDay}
-              />
+              <StatsCard title="Avg per Day" value={data.stats.avgPerDay} />
             </div>
 
             {/* Chart */}

@@ -11,11 +11,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { useTheme } from "next-themes";
-
-interface DailyData {
-  date: string;
-  count: number;
-}
+import type { DailyData } from "@/types/admin";
 
 interface RequestsChartProps {
   data: DailyData[];
@@ -147,7 +143,10 @@ export function RequestsChart({ data }: RequestsChartProps) {
             tickLine={{ stroke: colors.grid }}
             width={40}
           />
-          <Tooltip content={<CustomTooltip />} cursor={{ fill: "transparent" }} />
+          <Tooltip
+            content={<CustomTooltip />}
+            cursor={{ fill: "transparent" }}
+          />
           <Bar dataKey="count" fill={colors.bar} radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
