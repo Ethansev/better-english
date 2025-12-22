@@ -1,62 +1,16 @@
 "use client";
 
-import { useState } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { TextInput } from "@/components/TextInput";
-import { ResultCard } from "@/components/ResultCard";
 import { AuthButton } from "@/components/AuthButton";
+import { TextImprover } from "@/components/TextImprover";
 import { useHistory } from "@/supabase/useHistory";
 import { useAuth } from "@/supabase/useAuth";
-import { usePreferences } from "@/hooks/usePreferences";
-import { ToneSlider } from "@/components/ToneSlider";
 import Link from "next/link";
 import { HistoryList } from "@/components/history/HistoryList";
 
 export default function SentenceRewriter() {
-  const [inputText, setInputText] = useState("");
-  const [result, setResult] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState("");
-
   const { entries, addEntry, deleteEntry, clearAll } = useHistory();
   const { isAdmin } = useAuth();
-  const { tone, setTone } = usePreferences();
-
-  const handleImprove = async (textToImprove?: string) => {
-    const text = textToImprove || inputText;
-    if (!text.trim()) return;
-
-    setIsLoading(true);
-    setError("");
-    setResult("");
-
-    try {
-      const response = await fetch("/api/improve", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ text, tone }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to improve text");
-      }
-
-      setResult(data.improvedText);
-      addEntry(text, data.improvedText);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handlePaste = (pastedText: string) => {
-    handleImprove(pastedText);
-  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -91,27 +45,7 @@ export default function SentenceRewriter() {
           </p>
         </div>
 
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <ToneSlider value={tone} onChange={setTone} />
-          </div>
-
-          <TextInput
-            value={inputText}
-            onChange={setInputText}
-            onSubmit={() => handleImprove()}
-            onPaste={handlePaste}
-            isLoading={isLoading}
-          />
-
-          {error && (
-            <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400">
-              <span className="font-medium">Oops!</span> {error}
-            </div>
-          )}
-
-          <ResultCard result={result} isLoading={isLoading} />
-        </div>
+        <TextImprover onImproveComplete={addEntry} />
 
         <div className="mt-12 prose prose-gray dark:prose-invert max-w-none">
           <h2 className="text-xl font-semibold text-foreground">Rewrite Sentences Instantly</h2>

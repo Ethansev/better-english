@@ -4,44 +4,33 @@ interface TextInputProps {
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
-  onPaste: (text: string) => void;
   isLoading: boolean;
 }
 
-export function TextInput({ value, onChange, onSubmit, onPaste, isLoading }: TextInputProps) {
+export function TextInput({ value, onChange, onSubmit, isLoading }: TextInputProps) {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       onSubmit();
     }
   };
 
-  const handlePaste = (e: React.ClipboardEvent) => {
-    const pastedText = e.clipboardData.getData("text");
-    if (pastedText.trim()) {
-      e.preventDefault();
-      onChange(pastedText);
-      onPaste(pastedText);
-    }
-  };
-
   return (
     <div className="w-full">
       <label htmlFor="input-text" className="block text-sm font-medium mb-2 text-foreground/70">
-        Paste your text here ✍️
+        Enter your text ✍️
       </label>
       <textarea
         id="input-text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={handleKeyDown}
-        onPaste={handlePaste}
-        placeholder="Paste your sentence here and it will be improved automatically! e.g., 'I am wanting to know if you can help me with this issue kindly'"
+        placeholder="Paste or type your text here, then click Improve. e.g., 'I am wanting to know if you can help me with this issue kindly'"
         className="w-full h-40 p-4 rounded-xl border border-card-border bg-card text-foreground placeholder:text-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all duration-200 resize-none"
         disabled={isLoading}
       />
       <div className="mt-3 flex items-center justify-between">
         <span className="text-xs text-foreground/50">
-          Auto-improves on paste, or press <kbd className="px-1.5 py-0.5 rounded bg-card-border text-xs">⌘</kbd> + <kbd className="px-1.5 py-0.5 rounded bg-card-border text-xs">Enter</kbd>
+          Press <kbd className="px-1.5 py-0.5 rounded bg-card-border text-xs">⌘</kbd> + <kbd className="px-1.5 py-0.5 rounded bg-card-border text-xs">Enter</kbd> to improve
         </span>
         <button
           onClick={onSubmit}
