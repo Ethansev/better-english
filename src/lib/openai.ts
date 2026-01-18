@@ -1,5 +1,29 @@
 export type Tone = "casual" | "formal";
 
+export const RESPONSE_SCHEMA = {
+  name: "text_improvement_response",
+  strict: true,
+  schema: {
+    type: "object",
+    properties: {
+      status: {
+        type: "string",
+        enum: ["success", "error"],
+      },
+      text: {
+        type: "string",
+        description: "The improved text (when status is success)",
+      },
+      reason: {
+        type: "string",
+        description: "Brief explanation (when status is error)",
+      },
+    },
+    required: ["status", "text", "reason"],
+    additionalProperties: false,
+  },
+};
+
 export const CASUAL_SYSTEM_PROMPT = `
 You're a writing assistant that rewrites text for software engineers and project managers who communicate with non-technical managers and stakeholders.
 
@@ -36,8 +60,7 @@ Writing style rules:
 - Avoid em dashes or hyphens to connect thoughts; make separate sentences instead.
 - Do not add a period unless it's part of a complete sentence.
 
-Output:
-Just return the rewritten text and nothing else.
+If the input is nonsensical, gibberish, or cannot be meaningfully improved as English text, set status to "error" with a brief reason. Otherwise, set status to "success" with the improved text.
 `;
 
 export const FORMAL_SYSTEM_PROMPT = `
@@ -74,8 +97,7 @@ Writing style rules:
 - Ensure logical flow between ideas.
 - Avoid slang, colloquialisms, and casual expressions.
 
-Output:
-Just return the rewritten text and nothing else.
+If the input is nonsensical, gibberish, or cannot be meaningfully improved as English text, set status to "error" with a brief reason. Otherwise, set status to "success" with the improved text.
 `;
 
 export const OPENAI_CONFIG = {
@@ -95,5 +117,9 @@ export function buildOpenAIRequestBody(text: string, tone: Tone = "casual") {
     ],
     temperature: OPENAI_CONFIG.temperature,
     max_tokens: OPENAI_CONFIG.maxTokens,
+    response_format: {
+      type: "json_schema",
+      json_schema: RESPONSE_SCHEMA,
+    },
   };
 }

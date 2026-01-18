@@ -3,6 +3,13 @@ import { buildOpenAIRequestBody, type Tone } from "@/lib/openai";
 import { createClient } from "@/supabase/server";
 import { checkAnonymousRateLimit } from "@/lib/rate-limit";
 
+// Type for structured AI response (matches RESPONSE_SCHEMA in openai.ts)
+interface AIResponse {
+  status: "success" | "error";
+  text: string;
+  reason: string;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -77,14 +84,35 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await response.json();
-    const improvedText = data.choices[0]?.message?.content?.trim();
+    const content = data.choices[0]?.message?.content?.trim();
 
-    if (!improvedText) {
+    if (!content) {
       return NextResponse.json(
         { error: "No response from AI. Please try again." },
         { status: 500 }
       );
     }
+
+    // Parse JSON response from AI (schema guarantees structure with strict mode)
+    let parsed: AIResponse;
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      return NextResponse.json(
+        { error: "Invalid response from AI. Please try again." },
+        { status: 500 }
+      );
+    }
+
+    // Handle AI refusal for nonsensical input
+    if (parsed.status === "error") {
+      return NextResponse.json(
+        { error: "Couldn't improve this text. Try entering a sentence or phrase." },
+        { status: 400 }
+      );
+    }
+
+    const improvedText = parsed.text;
 
     if (user) {
       const { error: dbError } = await supabase.from("requests").insert({

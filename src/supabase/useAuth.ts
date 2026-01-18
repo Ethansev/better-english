@@ -70,6 +70,9 @@ export function useAuth() {
         setUser(session?.user ?? null);
 
         if (session?.user) {
+          // TODO: change when we update user subscriptons later
+          localStorage.removeItem("betterEnglish_rateLimitResetsAt");
+
           // Cookie will be updated by middleware on next request
           // For now, read current cookie value
           const cookieAdminValue = getCookie("is_admin") === "true";
