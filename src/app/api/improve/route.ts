@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { buildOpenAIRequestBody, type Tone } from "@/lib/openai";
+import { buildOpenAIRequestBody, type PersonalityConfig } from "@/lib/openai";
+import type { Tone, Verbosity, PersonalityPreset } from "@/types/personality";
+import { MAX_CUSTOM_INSTRUCTIONS_LENGTH } from "@/types/personality";
 import { createClient } from "@/supabase/server";
 import { checkAnonymousRateLimit } from "@/lib/rate-limit";
 import {
@@ -88,7 +90,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const { text, tone = "casual" } = await request.json() as { text: string; tone?: Tone };
+    const {
+      text,
+      tone = "casual",
+      verbosity = "balanced",
+      personalityPreset = null,
+      customInstructions = null
+    } = await request.json() as {
+      text: string;
+      tone?: Tone;
+      verbosity?: Verbosity;
+      personalityPreset?: PersonalityPreset | null;
+      customInstructions?: string | null;
+    };
 
     if (!text || typeof text !== "string") {
       return NextResponse.json(
@@ -104,6 +118,39 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate custom instructions length
+    if (customInstructions && customInstructions.length > MAX_CUSTOM_INSTRUCTIONS_LENGTH) {
+      return NextResponse.json(
+        { error: `Custom instructions must be ${MAX_CUSTOM_INSTRUCTIONS_LENGTH} characters or less.` },
+        { status: 400 }
+      );
+    }
+
+    const validTones: Tone[] = ["casual", "formal"];
+    const validVerbosities: Verbosity[] = ["concise", "balanced", "detailed"];
+    const validPresets: (PersonalityPreset | null)[] = ["friendly", "professional", "academic", "technical", null];
+
+    if (!validTones.includes(tone)) {
+      return NextResponse.json(
+        { error: "Invalid tone value" },
+        { status: 400 }
+      );
+    }
+
+    if (!validVerbosities.includes(verbosity)) {
+      return NextResponse.json(
+        { error: "Invalid verbosity value" },
+        { status: 400 }
+      );
+    }
+
+    if (!validPresets.includes(personalityPreset)) {
+      return NextResponse.json(
+        { error: "Invalid personality preset value" },
+        { status: 400 }
+      );
+    }
+
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
@@ -112,9 +159,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Build personality config
+    const personalityConfig: PersonalityConfig = {
+      tone,
+      verbosity,
+      personalityPreset,
+      customInstructions,
+    };
+
     // Build request body and add streaming
     const requestBody = {
-      ...buildOpenAIRequestBody(text, tone),
+      ...buildOpenAIRequestBody(text, personalityConfig),
       stream: true,
     };
 

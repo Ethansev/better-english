@@ -1,4 +1,6 @@
-export type Tone = "casual" | "formal";
+import type { Tone, Verbosity, PersonalityPreset, PersonalitySettings } from "@/types/personality";
+
+export type { Tone, Verbosity, PersonalityPreset, PersonalitySettings };
 
 export const RESPONSE_SCHEMA = {
   name: "text_improvement_response",
@@ -106,8 +108,117 @@ export const OPENAI_CONFIG = {
   maxTokens: 1000,
 };
 
-export function buildOpenAIRequestBody(text: string, tone: Tone = "casual") {
-  const systemPrompt = tone === "formal" ? FORMAL_SYSTEM_PROMPT : CASUAL_SYSTEM_PROMPT;
+export const VERBOSITY_MODIFIERS: Record<Verbosity, string> = {
+  concise: `
+Output length: Keep responses extremely brief and to the point. Use the minimum words necessary to convey the message clearly. Avoid any unnecessary elaboration or filler phrases.`,
+  balanced: `
+Output length: Use a balanced approach to length. Provide enough detail for clarity without being overly verbose or too brief.`,
+  detailed: `
+Output length: Provide thorough, comprehensive rewrites. Include helpful context and ensure nothing important is left out. Elaborate where it adds clarity.`,
+};
+
+export const PERSONALITY_MODIFIERS: Record<PersonalityPreset, string> = {
+  friendly: `
+Additional style notes:
+- Be warm, personable, and encouraging
+- Use a supportive and positive tone
+- It's okay to add gentle enthusiasm where appropriate
+- Make the reader feel comfortable and at ease`,
+  professional: `
+Additional style notes:
+- Maintain a polished, business-appropriate tone
+- Be clear, confident, and direct
+- Use professional vocabulary without being stiff
+- Suitable for emails to managers, clients, or stakeholders`,
+  academic: `
+Additional style notes:
+- Use scholarly, precise language
+- Employ formal academic conventions
+- Be objective and measured in tone
+- Suitable for research contexts and formal reports`,
+  technical: `
+Additional style notes:
+- Optimize for clarity with technical audiences
+- Be direct and efficient with language
+- Assume the reader has technical background
+- Focus on accuracy and precision over pleasantries`,
+};
+
+/**
+ * Sanitize custom instructions to prevent prompt injection
+ */
+export function sanitizeCustomInstructions(instructions: string | null): string {
+  if (!instructions) return "";
+
+  // Remove any attempt to override system behavior
+  let sanitized = instructions
+    // Remove common injection patterns
+    .replace(/ignore\s+(all\s+)?(previous|above|prior)\s+(instructions?|prompts?|rules?)/gi, "")
+    .replace(/disregard\s+(all\s+)?(previous|above|prior)\s+(instructions?|prompts?|rules?)/gi, "")
+    .replace(/forget\s+(all\s+)?(previous|above|prior)\s+(instructions?|prompts?|rules?)/gi, "")
+    .replace(/you\s+are\s+now\s+/gi, "")
+    .replace(/new\s+instructions?:/gi, "")
+    .replace(/system\s*:/gi, "")
+    .replace(/assistant\s*:/gi, "")
+    .replace(/user\s*:/gi, "")
+    // Remove markdown code blocks that might try to inject prompts
+    .replace(/```[\s\S]*?```/g, "")
+    // Remove excessive whitespace
+    .replace(/\s+/g, " ")
+    .trim();
+
+  // Limit length
+  if (sanitized.length > 500) {
+    sanitized = sanitized.slice(0, 500);
+  }
+
+  return sanitized;
+}
+
+export interface PersonalityConfig {
+  tone?: Tone;
+  verbosity?: Verbosity;
+  personalityPreset?: PersonalityPreset | null;
+  customInstructions?: string | null;
+}
+
+/**
+ * Build the system prompt based on personality configuration
+ */
+export function buildSystemPrompt(config: PersonalityConfig = {}): string {
+  const {
+    tone = "casual",
+    verbosity = "balanced",
+    personalityPreset = null,
+    customInstructions = null
+  } = config;
+
+  let prompt = tone === "formal" ? FORMAL_SYSTEM_PROMPT : CASUAL_SYSTEM_PROMPT;
+
+  prompt += VERBOSITY_MODIFIERS[verbosity];
+
+  if (personalityPreset && PERSONALITY_MODIFIERS[personalityPreset]) {
+    prompt += PERSONALITY_MODIFIERS[personalityPreset];
+  }
+
+  const sanitizedInstructions = sanitizeCustomInstructions(customInstructions);
+  if (sanitizedInstructions) {
+    prompt += `
+
+User's additional preferences (follow these while maintaining all other rules):
+${sanitizedInstructions}`;
+  }
+
+  return prompt;
+}
+
+export function buildOpenAIRequestBody(text: string, config: PersonalityConfig | Tone = "casual") {
+  // Support both old signature (tone string) and new signature (config object)
+  const personalityConfig: PersonalityConfig = typeof config === "string"
+    ? { tone: config }
+    : config;
+
+  const systemPrompt = buildSystemPrompt(personalityConfig);
 
   return {
     model: OPENAI_CONFIG.model,

@@ -2,6 +2,7 @@
 
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AuthButton } from "@/components/AuthButton";
+import { SettingsButton } from "@/components/SettingsButton";
 import { TextImprover } from "@/components/TextImprover";
 import { useHistory } from "@/supabase/useHistory";
 import { useAuth } from "@/supabase/useAuth";
@@ -30,6 +31,7 @@ export default function Home() {
               </Link>
             )}
             <AuthButton />
+            <SettingsButton />
             <ThemeToggle />
           </div>
         </div>

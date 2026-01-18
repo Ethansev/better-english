@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { TextInput } from "@/components/TextInput";
 import { ResultCard } from "@/components/ResultCard";
-import { ToneSlider } from "@/components/ToneSlider";
+import { PersonaBar } from "@/components/PersonaBar";
 import { usePreferences } from "@/hooks/usePreferences";
 import { processSSEResponse } from "@/lib/streaming";
 
@@ -38,7 +38,7 @@ export function TextImprover({ onImproveComplete }: TextImproverProps) {
   } | null>(null);
   const [countdown, setCountdown] = useState<string | null>(null);
 
-  const { tone, setTone } = usePreferences();
+  const { tone, setTone, verbosity, personalityPreset, customInstructions, selectedPersona, applyPersona, clearPersona } = usePreferences();
 
   // Check localStorage on mount for existing rate limit
   useEffect(() => {
@@ -104,7 +104,13 @@ export function TextImprover({ onImproveComplete }: TextImproverProps) {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ text: inputText, tone }),
+        body: JSON.stringify({
+          text: inputText,
+          tone,
+          verbosity,
+          personalityPreset,
+          customInstructions,
+        }),
       });
 
       // Handle rate limit errors (returned as JSON, not stream)
@@ -178,8 +184,15 @@ export function TextImprover({ onImproveComplete }: TextImproverProps) {
 
   return (
     <div className="space-y-6">
-      {/* ToneSlider stays interactive even when rate limited */}
-      <ToneSlider value={tone} onChange={setTone} />
+      {/* PersonaBar stays interactive even when rate limited */}
+      <PersonaBar
+        selectedPersona={selectedPersona}
+        tone={tone}
+        verbosity={verbosity}
+        personalityPreset={personalityPreset}
+        onSelectPersona={applyPersona}
+        onClearPersona={clearPersona}
+      />
 
       {/* TextInput - disabled when rate limited */}
       <div className="relative">

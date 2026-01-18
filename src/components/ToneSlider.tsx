@@ -5,9 +5,10 @@ export type Tone = "casual" | "formal";
 interface ToneSliderProps {
   value: Tone;
   onChange: (tone: Tone) => void;
+  disabled?: boolean;
 }
 
-export function ToneSlider({ value, onChange }: ToneSliderProps) {
+export function ToneSlider({ value, onChange, disabled }: ToneSliderProps) {
   const isFormal = value === "formal";
 
   return (
@@ -24,7 +25,10 @@ export function ToneSlider({ value, onChange }: ToneSliderProps) {
         role="switch"
         aria-checked={isFormal}
         onClick={() => onChange(isFormal ? "casual" : "formal")}
-        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 cursor-pointer ${
+        disabled={disabled}
+        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 ${
+          disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+        } ${
           isFormal
             ? "bg-blue-500"
             : "bg-gray-300 dark:bg-gray-600"
