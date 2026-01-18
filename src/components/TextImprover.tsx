@@ -6,6 +6,7 @@ import { TextInput } from "@/components/TextInput";
 import { ResultCard } from "@/components/ResultCard";
 import { ToneSlider } from "@/components/ToneSlider";
 import { usePreferences } from "@/hooks/usePreferences";
+import { processSSEResponse } from "@/lib/streaming";
 
 const RATE_LIMIT_STORAGE_KEY = "betterEnglish_rateLimitResetsAt";
 
@@ -13,10 +14,24 @@ interface TextImproverProps {
   onImproveComplete?: (original: string, improved: string) => void;
 }
 
+interface SSEMessage {
+  type: "delta" | "done" | "meta" | "error";
+  content?: string;
+  status?: "success" | "error";
+  improvedText?: string;
+  message?: string;
+  rateLimitInfo?: {
+    remaining: number;
+    limit: number;
+    resetsAt: string;
+  };
+}
+
 export function TextImprover({ onImproveComplete }: TextImproverProps) {
   const [inputText, setInputText] = useState("");
   const [result, setResult] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState("");
   const [rateLimitError, setRateLimitError] = useState<{
     resetsAt: string;
@@ -78,6 +93,7 @@ export function TextImprover({ onImproveComplete }: TextImproverProps) {
     if (!inputText.trim()) return;
 
     setIsLoading(true);
+    setIsStreaming(false);
     setError("");
     setRateLimitError(null);
     setResult("");
@@ -91,23 +107,72 @@ export function TextImprover({ onImproveComplete }: TextImproverProps) {
         body: JSON.stringify({ text: inputText, tone }),
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        if (response.status === 429 && data.code === "RATE_LIMIT_EXCEEDED") {
+      // Handle rate limit errors (returned as JSON, not stream)
+      if (response.status === 429) {
+        const data = await response.json();
+        if (data.code === "RATE_LIMIT_EXCEEDED") {
           localStorage.setItem(RATE_LIMIT_STORAGE_KEY, data.resetsAt);
           setRateLimitError({ resetsAt: data.resetsAt });
           return;
         }
+        throw new Error(data.error || "Rate limit exceeded");
+      }
+
+      if (!response.ok) {
+        const data = await response.json();
         throw new Error(data.error || "Failed to improve text");
       }
 
-      setResult(data.improvedText);
-      onImproveComplete?.(inputText, data.improvedText);
+      // Handle streaming response
+      let accumulatedText = "";
+      let finalImprovedText = "";
+
+      setIsStreaming(true);
+
+      await processSSEResponse<SSEMessage>(response, {
+        onMessage: (message) => {
+          switch (message.type) {
+            case "delta":
+              if (message.content) {
+                accumulatedText += message.content;
+                setResult(accumulatedText);
+              }
+              break;
+
+            case "done":
+              setIsStreaming(false);
+              if (message.status === "error") {
+                setResult("");
+                setError(message.message || "Couldn't improve this text. Try entering a sentence or phrase.");
+              } else if (message.improvedText) {
+                finalImprovedText = message.improvedText;
+                setResult(message.improvedText);
+              }
+              break;
+
+            case "meta":
+              // Handle rate limit info updates for anonymous users
+              // No need to update UI, just acknowledge receipt
+              break;
+
+            case "error":
+              setIsStreaming(false);
+              setResult("");
+              setError(message.message || "Something went wrong");
+              break;
+          }
+        },
+      });
+
+      // Call completion callback with final text
+      if (finalImprovedText) {
+        onImproveComplete?.(inputText, finalImprovedText);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setIsLoading(false);
+      setIsStreaming(false);
     }
   };
 
@@ -160,7 +225,7 @@ export function TextImprover({ onImproveComplete }: TextImproverProps) {
         </div>
       )}
 
-      <ResultCard result={result} isLoading={isLoading} />
+      <ResultCard result={result} isLoading={isLoading} isStreaming={isStreaming} />
     </div>
   );
 }

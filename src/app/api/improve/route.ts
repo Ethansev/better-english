@@ -2,12 +2,59 @@ import { NextRequest, NextResponse } from "next/server";
 import { buildOpenAIRequestBody, type Tone } from "@/lib/openai";
 import { createClient } from "@/supabase/server";
 import { checkAnonymousRateLimit } from "@/lib/rate-limit";
+import {
+  createOpenAIStreamProcessor,
+  formatSSEMessage,
+  type AIResponse,
+} from "@/lib/streaming";
+import { SupabaseClient, User } from "@supabase/supabase-js";
 
-// Type for structured AI response (matches RESPONSE_SCHEMA in openai.ts)
-interface AIResponse {
-  status: "success" | "error";
-  text: string;
-  reason: string;
+interface RateLimitInfo {
+  remaining: number;
+  limit: number;
+  resetsAt: string;
+}
+
+// Parallel DB writes for improved performance
+async function saveToDatabase(
+  supabase: SupabaseClient,
+  user: User | null,
+  ip: string,
+  originalText: string,
+  improvedText: string
+): Promise<void> {
+  const promises: Promise<void>[] = [];
+
+  // Save to requests table for authenticated users
+  if (user) {
+    promises.push(
+      (async () => {
+        const { error } = await supabase.from("requests").insert({
+          user_id: user.id,
+          original_text: originalText,
+          improved_text: improvedText,
+        });
+        if (error) console.error("Failed to save history:", error);
+      })()
+    );
+  }
+
+  // Log analytics for ALL requests (even anonymous)
+  promises.push(
+    (async () => {
+      const { error } = await supabase.from("analytics").insert({
+        user_id: user?.id || null,
+        ip_address: ip,
+        original_text_length: originalText.length,
+        improved_text_length: improvedText.length,
+        original_text: user ? null : originalText,
+        improved_text: user ? null : improvedText,
+      });
+      if (error) console.error("Failed to log analytics:", error);
+    })()
+  );
+
+  await Promise.all(promises);
 }
 
 export async function POST(request: NextRequest) {
@@ -65,14 +112,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Build request body and add streaming
+    const requestBody = {
+      ...buildOpenAIRequestBody(text, tone),
+      stream: true,
+    };
+
+    // Add 30-second timeout
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
       },
-      body: JSON.stringify(buildOpenAIRequestBody(text, tone)),
+      body: JSON.stringify(requestBody),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeout);
 
     if (!response.ok) {
       const error = await response.json();
@@ -83,67 +143,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const data = await response.json();
-    const content = data.choices[0]?.message?.content?.trim();
-
-    if (!content) {
+    if (!response.body) {
       return NextResponse.json(
         { error: "No response from AI. Please try again." },
         { status: 500 }
       );
     }
 
-    // Parse JSON response from AI (schema guarantees structure with strict mode)
-    let parsed: AIResponse;
-    try {
-      parsed = JSON.parse(content);
-    } catch {
-      return NextResponse.json(
-        { error: "Invalid response from AI. Please try again." },
-        { status: 500 }
-      );
-    }
-
-    // Handle AI refusal for nonsensical input
-    if (parsed.status === "error") {
-      return NextResponse.json(
-        { error: "Couldn't improve this text. Try entering a sentence or phrase." },
-        { status: 400 }
-      );
-    }
-
-    const improvedText = parsed.text;
-
-    if (user) {
-      const { error: dbError } = await supabase.from("requests").insert({
-        user_id: user.id,
-        original_text: text,
-        improved_text: improvedText,
-      });
-
-      if (dbError) {
-        console.error("Failed to save history:", dbError);
-      }
-    }
-
-    // Log analytics for ALL requests (even anonymous)
-    const { error: analyticsError } = await supabase.from("analytics").insert({
-      user_id: user?.id || null,
-      ip_address: ip,
-      original_text_length: text.length,
-      improved_text_length: improvedText.length,
-      // Store full text only for anonymous users (authenticated users have it in requests table)
-      original_text: user ? null : text,
-      improved_text: user ? null : improvedText,
-    });
-
-    if (analyticsError) {
-      console.error("Failed to log analytics:", analyticsError);
-    }
-
-    // For anonymous users, return updated rate limit info
-    // The remaining count is decremented by 1 since we just used a request
-    const rateLimitInfo = rateLimitResult
+    // Prepare rate limit info for anonymous users
+    const rateLimitInfo: RateLimitInfo | null = rateLimitResult
       ? {
           remaining: Math.max(0, rateLimitResult.remaining - 1),
           limit: rateLimitResult.limit,
@@ -151,7 +159,31 @@ export async function POST(request: NextRequest) {
         }
       : null;
 
-    return NextResponse.json({ improvedText, rateLimitInfo });
+    // Create a streaming response using the stream processor
+    const encoder = new TextEncoder();
+    const stream = createOpenAIStreamProcessor(response, {
+      onSuccess: (result: AIResponse, streamController) => {
+        // Run DB writes in parallel (don't await - fire and forget for faster response)
+        saveToDatabase(supabase, user, ip, text, result.text).catch((err) => {
+          console.error("Database write error:", err);
+        });
+
+        // Send rate limit info for anonymous users
+        if (rateLimitInfo) {
+          streamController.enqueue(
+            encoder.encode(formatSSEMessage({ type: "meta", rateLimitInfo }))
+          );
+        }
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      },
+    });
   } catch (error) {
     console.error("Error improving text:", error);
     return NextResponse.json(

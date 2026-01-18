@@ -5,9 +5,10 @@ import { useState } from "react";
 interface ResultCardProps {
   result: string;
   isLoading: boolean;
+  isStreaming?: boolean;
 }
 
-export function ResultCard({ result, isLoading }: ResultCardProps) {
+export function ResultCard({ result, isLoading, isStreaming = false }: ResultCardProps) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -22,7 +23,8 @@ export function ResultCard({ result, isLoading }: ResultCardProps) {
     }
   };
 
-  if (isLoading) {
+  // Show loading shimmer only when loading and not yet streaming
+  if (isLoading && !isStreaming && !result) {
     return (
       <div className="w-full p-6 rounded-xl border border-card-border bg-card">
         <div className="flex items-center gap-2 mb-3">
@@ -36,6 +38,23 @@ export function ResultCard({ result, isLoading }: ResultCardProps) {
           <div className="h-4 rounded loading-shimmer w-4/5" />
           <div className="h-4 rounded loading-shimmer w-3/5" />
         </div>
+      </div>
+    );
+  }
+
+  // Show streaming state with current text
+  if (isStreaming && result) {
+    return (
+      <div className="w-full p-6 rounded-xl border border-card-border bg-card relative group">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-foreground/70">Improved version</span>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-primary/20 text-primary animate-pulse">
+              AI is writing...
+            </span>
+          </div>
+        </div>
+        <p className="text-foreground leading-relaxed whitespace-pre-wrap">{result}</p>
       </div>
     );
   }
