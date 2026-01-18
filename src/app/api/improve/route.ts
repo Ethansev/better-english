@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildOpenAIRequestBody, type Tone } from "@/lib/openai";
 import { createClient } from "@/supabase/server";
+import { checkAnonymousRateLimit } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
   try {
@@ -8,6 +9,30 @@ export async function POST(request: NextRequest) {
     const {
       data: { user },
     } = await supabase.auth.getUser();
+
+    // Get IP address for rate limiting
+    const ip =
+      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      request.headers.get("x-real-ip") ||
+      "unknown";
+
+    // Rate limit check for anonymous users
+    let rateLimitResult = null;
+    if (!user) {
+      rateLimitResult = await checkAnonymousRateLimit(supabase, ip);
+      if (!rateLimitResult.allowed) {
+        return NextResponse.json(
+          {
+            error: "Daily limit reached",
+            code: "RATE_LIMIT_EXCEEDED",
+            limit: rateLimitResult.limit,
+            remaining: rateLimitResult.remaining,
+            resetsAt: rateLimitResult.resetsAt,
+          },
+          { status: 429 }
+        );
+      }
+    }
 
     const { text, tone = "casual" } = await request.json() as { text: string; tone?: Tone };
 
@@ -74,11 +99,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Log analytics for ALL requests (even anonymous)
-    const ip =
-      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-      request.headers.get("x-real-ip") ||
-      "unknown";
-
     const { error: analyticsError } = await supabase.from("analytics").insert({
       user_id: user?.id || null,
       ip_address: ip,
@@ -93,7 +113,17 @@ export async function POST(request: NextRequest) {
       console.error("Failed to log analytics:", analyticsError);
     }
 
-    return NextResponse.json({ improvedText });
+    // For anonymous users, return updated rate limit info
+    // The remaining count is decremented by 1 since we just used a request
+    const rateLimitInfo = rateLimitResult
+      ? {
+          remaining: Math.max(0, rateLimitResult.remaining - 1),
+          limit: rateLimitResult.limit,
+          resetsAt: rateLimitResult.resetsAt,
+        }
+      : null;
+
+    return NextResponse.json({ improvedText, rateLimitInfo });
   } catch (error) {
     console.error("Error improving text:", error);
     return NextResponse.json(

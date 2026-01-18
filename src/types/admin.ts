@@ -1,5 +1,14 @@
 export type DateRange = "today" | "7d" | "14d" | "30d" | "90d" | "all";
 
+export type AccountType = "free" | "unlimited" | "premium";
+
+export interface RateLimitInfo {
+  allowed: boolean;
+  remaining: number;
+  limit: number;
+  resetsAt: string;
+}
+
 export interface AdminStats {
   totalRequests: number;
   avgPerDay: number;
@@ -21,6 +30,8 @@ export interface UserData {
   ipAddress: string | null;
   count: number;
   lastActive: string;
+  accountType?: AccountType;
+  isAdmin?: boolean;
 }
 
 export interface RequestData {
@@ -59,6 +70,8 @@ export interface UserInfo {
   name: string | null;
   isAnonymous: boolean;
   ipAddress: string | null;
+  accountType?: AccountType;
+  isAdmin?: boolean;
 }
 
 export interface UserStats {

@@ -9,9 +9,16 @@ import { UserRequestsHistory } from "@/components/admin/UserRequestsHistory";
 import {
   type DateRange,
   type UserDetailData,
+  type AccountType,
   dateRangeOptions,
 } from "@/types/admin";
 import Link from "next/link";
+
+const accountTypeOptions: { value: AccountType; label: string }[] = [
+  { value: "free", label: "Free" },
+  { value: "unlimited", label: "Unlimited" },
+  { value: "premium", label: "Premium" },
+];
 
 function maskIP(ip: string): string {
   const parts = ip.split(".");
@@ -29,6 +36,34 @@ export default function UserDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<DateRange>("30d");
+  const [isUpdatingAccountType, setIsUpdatingAccountType] = useState(false);
+
+  const handleAccountTypeChange = async (newAccountType: AccountType) => {
+    if (!data || data.user.isAnonymous) return;
+
+    setIsUpdatingAccountType(true);
+    try {
+      const response = await fetch(
+        `/api/admin/users/${encodeURIComponent(userId)}/account-type`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ accountType: newAccountType }),
+        }
+      );
+
+      if (response.ok) {
+        setData({
+          ...data,
+          user: { ...data.user, accountType: newAccountType },
+        });
+      }
+    } catch (err) {
+      console.error("Failed to update account type:", err);
+    } finally {
+      setIsUpdatingAccountType(false);
+    }
+  };
 
   useEffect(() => {
     async function fetchUserDetails() {
@@ -119,15 +154,41 @@ export default function UserDetailPage() {
                   </span>
                 </div>
               ) : (
-                <div>
-                  {data.user.name && (
-                    <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
-                      {data.user.name}
-                    </h1>
-                  )}
-                  <p className="text-gray-500 dark:text-gray-400">
-                    {data.user.email}
-                  </p>
+                <div className="flex items-start justify-between">
+                  <div>
+                    {data.user.name && (
+                      <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
+                        {data.user.name}
+                      </h1>
+                    )}
+                    <p className="text-gray-500 dark:text-gray-400">
+                      {data.user.email}
+                    </p>
+                    {data.user.isAdmin && (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300 mt-1">
+                        Admin
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm text-gray-500 dark:text-gray-400">
+                      Account Type:
+                    </label>
+                    <select
+                      value={data.user.accountType || "free"}
+                      onChange={(e) =>
+                        handleAccountTypeChange(e.target.value as AccountType)
+                      }
+                      disabled={isUpdatingAccountType}
+                      className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                    >
+                      {accountTypeOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               )}
             </div>

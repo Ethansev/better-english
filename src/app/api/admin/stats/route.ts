@@ -107,7 +107,14 @@ export async function GET(request: NextRequest) {
     // Group by user for table
     const userCounts: Record<
       string,
-      { email: string | null; name: string | null; count: number; lastActive: string }
+      {
+        email: string | null;
+        name: string | null;
+        count: number;
+        lastActive: string;
+        accountType: string | null;
+        isAdmin: boolean;
+      }
     > = {};
 
     // Fetch user profiles for email/name lookup
@@ -116,7 +123,7 @@ export async function GET(request: NextRequest) {
     ];
     const { data: profiles } = await supabase
       .from("profiles")
-      .select("id, email, name")
+      .select("id, email, name, account_type, is_admin")
       .in("id", userIds);
 
     const profileMap = new Map(profiles?.map((p) => [p.id, p]) || []);
@@ -130,6 +137,8 @@ export async function GET(request: NextRequest) {
           name: profile?.name || null,
           count: 0,
           lastActive: a.created_at,
+          accountType: profile?.account_type || null,
+          isAdmin: profile?.is_admin || false,
         };
       }
       userCounts[key].count++;
@@ -148,6 +157,8 @@ export async function GET(request: NextRequest) {
         ipAddress: id.startsWith("ip:") ? id.slice(3) : null,
         count: data.count,
         lastActive: data.lastActive,
+        accountType: data.accountType,
+        isAdmin: data.isAdmin,
       }))
       .sort((a, b) => b.count - a.count);
 

@@ -84,11 +84,16 @@ export async function GET(
     }
 
     // Fetch user profile for authenticated users
-    let userProfile: { email: string | null; name: string | null } | null = null;
+    let userProfile: {
+      email: string | null;
+      name: string | null;
+      is_admin: boolean;
+      account_type: string;
+    } | null = null;
     if (!isAnonymous) {
       const { data: profile } = await supabase
         .from("profiles")
-        .select("email, name")
+        .select("email, name, is_admin, account_type")
         .eq("id", decodedUserId)
         .single();
       userProfile = profile;
@@ -205,6 +210,8 @@ export async function GET(
         name: userProfile?.name || null,
         isAnonymous,
         ipAddress,
+        accountType: userProfile?.account_type || null,
+        isAdmin: userProfile?.is_admin || false,
       },
       stats: {
         totalRequests,

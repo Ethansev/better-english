@@ -3,7 +3,37 @@
 import Link from "next/link";
 import { useState, useMemo } from "react";
 import type { SortColumn, SortDirection } from "@/store/preferencesStore";
-import type { UserData } from "@/types/admin";
+import type { UserData, AccountType } from "@/types/admin";
+
+function AccountTypeBadge({ type, isAdmin }: { type?: AccountType; isAdmin?: boolean }) {
+  if (isAdmin) {
+    return (
+      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
+        Admin
+      </span>
+    );
+  }
+
+  if (!type) return null;
+
+  const styles: Record<AccountType, string> = {
+    free: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300",
+    unlimited: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
+    premium: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+  };
+
+  const labels: Record<AccountType, string> = {
+    free: "Free",
+    unlimited: "Unlimited",
+    premium: "Premium",
+  };
+
+  return (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${styles[type]}`}>
+      {labels[type]}
+    </span>
+  );
+}
 
 interface UsersTableProps {
   users: UserData[];
@@ -209,6 +239,9 @@ export function UsersTable({
                   />
                 </div>
               </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Account
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -263,6 +296,16 @@ export function UsersTable({
                     className="block"
                   >
                     {formatRelativeTime(user.lastActive)}
+                  </Link>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <Link
+                    href={`/admin/users/${encodeURIComponent(user.id)}`}
+                    className="block"
+                  >
+                    {!user.isAnonymous && (
+                      <AccountTypeBadge type={user.accountType} isAdmin={user.isAdmin} />
+                    )}
                   </Link>
                 </td>
               </tr>
