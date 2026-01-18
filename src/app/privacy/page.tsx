@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Logo } from "@/components/Logo";
 
 export default function PrivacyPolicyPage() {
   return (
@@ -9,7 +10,7 @@ export default function PrivacyPolicyPage() {
             href="/"
             className="text-xl font-bold text-foreground flex items-center gap-2 hover:opacity-80 transition-opacity"
           >
-            <span className="text-2xl">✨</span>
+            <Logo size={28} />
             BetterEnglish
           </Link>
         </div>

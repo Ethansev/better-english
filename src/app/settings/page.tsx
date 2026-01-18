@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { Logo } from "@/components/Logo";
 import { AuthButton } from "@/components/AuthButton";
 import { ToneSlider } from "@/components/ToneSlider";
 import { VerbositySelector } from "@/components/settings/VerbositySelector";
@@ -32,7 +33,7 @@ export default function SettingsPage() {
       <header className="fixed top-0 left-0 right-0 z-10 bg-background/80 backdrop-blur-sm border-b border-card-border">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
           <Link href="/" className="text-xl font-bold text-foreground flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <span className="text-2xl">✨</span>
+            <Logo size={28} />
             BetterEnglish
           </Link>
           <div className="flex items-center gap-3">

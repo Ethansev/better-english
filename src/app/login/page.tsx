@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useAuth } from "@/supabase/useAuth";
+import { Logo } from "@/components/Logo";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -85,7 +86,7 @@ export default function LoginPage() {
             href="/"
             className="inline-flex items-center gap-2 text-2xl font-bold text-foreground"
           >
-            <span className="text-3xl">✨</span>
+            <Logo size={36} />
             BetterEnglish
           </Link>
           <p className="mt-2 text-foreground/60">

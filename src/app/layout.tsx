@@ -22,6 +22,19 @@ export const metadata: Metadata = {
     template: "%s | BetterEnglish",
   },
   description: "Free AI writing assistant to improve your English. Fix grammar, rephrase sentences, and polish your writing for emails, essays, and professional documents. Better English made easy.",
+  icons: {
+    icon: [
+      {
+        url: '/icon-dark.svg',
+        media: '(prefers-color-scheme: light)',
+      },
+      {
+        url: '/icon-light.svg',
+        media: '(prefers-color-scheme: dark)',
+      },
+    ],
+    apple: '/apple-icon',
+  },
   keywords: [
     "better english",
     "better english app",

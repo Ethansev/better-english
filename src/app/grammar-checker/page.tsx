@@ -7,6 +7,7 @@ import { useHistory } from "@/supabase/useHistory";
 import { useAuth } from "@/supabase/useAuth";
 import Link from "next/link";
 import { HistoryList } from "@/components/history/HistoryList";
+import { Logo } from "@/components/Logo";
 
 export default function GrammarChecker() {
   const { entries, addEntry, deleteEntry, clearAll } = useHistory();
@@ -17,7 +18,7 @@ export default function GrammarChecker() {
       <header className="fixed top-0 left-0 right-0 z-10 bg-background/80 backdrop-blur-sm border-b border-card-border">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
           <Link href="/" className="text-xl font-bold text-foreground flex items-center gap-2">
-            <span className="text-2xl">✨</span>
+            <Logo size={28} />
             BetterEnglish
           </Link>
           <div className="flex items-center gap-3">
