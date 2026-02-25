@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import "./globals.css";
 import { Analytics } from "@vercel/analytics/next"
+import CrispChat from "@/components/CrispChat"
 
 
 const geistSans = Geist({
@@ -105,6 +106,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <Analytics />
+        <CrispChat />
         <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
