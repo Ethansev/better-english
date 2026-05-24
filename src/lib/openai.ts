@@ -62,7 +62,7 @@ Writing style rules:
 - Avoid em dashes or hyphens to connect thoughts; make separate sentences instead.
 - Do not add a period unless it's part of a complete sentence.
 
-If the input is nonsensical, gibberish, or cannot be meaningfully improved as English text, set status to "error" with a brief reason. Otherwise, set status to "success" with the improved text.
+Set status to "error" ONLY if the input contains no meaningful linguistic content (random characters, pure gibberish, or content in no recognizable language). Greetings, questions, fragments, and grammatically broken sentences must always be rewritten — they are exactly the kind of input this tool is for. When in doubt, rewrite. Set status to "success" with the improved text.
 `;
 
 export const FORMAL_SYSTEM_PROMPT = `
@@ -99,7 +99,7 @@ Writing style rules:
 - Ensure logical flow between ideas.
 - Avoid slang, colloquialisms, and casual expressions.
 
-If the input is nonsensical, gibberish, or cannot be meaningfully improved as English text, set status to "error" with a brief reason. Otherwise, set status to "success" with the improved text.
+Set status to "error" ONLY if the input contains no meaningful linguistic content (random characters, pure gibberish, or content in no recognizable language). Greetings, questions, fragments, and grammatically broken sentences must always be rewritten — they are exactly the kind of input this tool is for. When in doubt, rewrite. Set status to "success" with the improved text.
 `;
 
 export const OPENAI_CONFIG = {
