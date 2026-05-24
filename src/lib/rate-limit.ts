@@ -1,4 +1,4 @@
-import { SupabaseClient } from "@supabase/supabase-js";
+import { prisma } from "@/prisma/client";
 
 const ANONYMOUS_DAILY_LIMIT = 20;
 
@@ -15,41 +15,49 @@ export interface UserAccessResult {
   isAdmin: boolean;
 }
 
-/**
- * Get the start of the current UTC day
- */
 function getUtcDayStart(): Date {
   const now = new Date();
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  return new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+  );
 }
 
-/**
- * Get the start of the next UTC day (reset time)
- */
 function getUtcDayEnd(): Date {
   const dayStart = getUtcDayStart();
   return new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
 }
 
-/**
- * Check rate limit for anonymous users based on IP address
- */
+export function extractClientIp(headers: Headers): string {
+  const xff = headers.get("x-forwarded-for");
+  if (xff) return xff.split(",")[0]!.trim();
+  return headers.get("x-real-ip") ?? "unknown";
+}
+
 export async function checkAnonymousRateLimit(
-  supabase: SupabaseClient,
   ip: string
 ): Promise<RateLimitResult> {
   const dayStart = getUtcDayStart();
   const resetsAt = getUtcDayEnd().toISOString();
 
-  // Use database function that bypasses RLS
-  const { data, error } = await supabase.rpc("count_anonymous_requests", {
-    p_ip_address: ip,
-    p_since: dayStart.toISOString(),
-  });
+  try {
+    const used = await prisma.analytics.count({
+      where: {
+        userId: null,
+        ipAddress: ip,
+        createdAt: { gte: dayStart },
+      },
+    });
 
-  if (error) {
+    const remaining = Math.max(0, ANONYMOUS_DAILY_LIMIT - used);
+    return {
+      allowed: remaining > 0,
+      remaining,
+      limit: ANONYMOUS_DAILY_LIMIT,
+      resetsAt,
+    };
+  } catch (error) {
     console.error("Error checking rate limit:", error);
-    // On error, allow the request but log it
+    // On DB error, fail open with full quota (mirrors prior behavior)
     return {
       allowed: true,
       remaining: ANONYMOUS_DAILY_LIMIT,
@@ -57,60 +65,33 @@ export async function checkAnonymousRateLimit(
       resetsAt,
     };
   }
-
-  const used = data ?? 0;
-  const remaining = Math.max(0, ANONYMOUS_DAILY_LIMIT - used);
-
-  return {
-    allowed: remaining > 0,
-    remaining,
-    limit: ANONYMOUS_DAILY_LIMIT,
-    resetsAt,
-  };
 }
 
-/**
- * Check if a user has unlimited access (admin OR unlimited/premium account type)
- */
 export async function checkUserAccess(
-  supabase: SupabaseClient,
   userId: string
 ): Promise<UserAccessResult> {
-  const { data: profile, error } = await supabase
-    .from("profiles")
-    .select("is_admin, account_type")
-    .eq("id", userId)
-    .single();
+  try {
+    const profile = await prisma.profile.findUnique({
+      where: { id: userId },
+      select: { isAdmin: true, accountType: true },
+    });
 
-  if (error || !profile) {
-    console.error("Error checking user access:", error);
-    // Default to free user with unlimited access (as per plan)
+    if (!profile) {
+      return { hasUnlimitedAccess: true, accountType: "free", isAdmin: false };
+    }
+
     return {
-      hasUnlimitedAccess: true,
-      accountType: "free",
-      isAdmin: false,
+      hasUnlimitedAccess: true, // all authed users currently unlimited
+      accountType: profile.accountType,
+      isAdmin: profile.isAdmin === true,
     };
+  } catch (error) {
+    console.error("Error checking user access:", error);
+    return { hasUnlimitedAccess: true, accountType: "free", isAdmin: false };
   }
-
-  const isAdmin = profile.is_admin === true;
-  const accountType = profile.account_type ?? "free";
-
-  // All authenticated users currently have unlimited access
-  // The account type system is set up for future flexibility
-  const hasUnlimitedAccess = true;
-
-  return {
-    hasUnlimitedAccess,
-    accountType,
-    isAdmin,
-  };
 }
 
-/**
- * Get rate limit status for display purposes
- */
 export async function getRateLimitStatus(
-  supabase: SupabaseClient,
   ip: string | null,
   userId: string | null
 ): Promise<{
@@ -119,24 +100,15 @@ export async function getRateLimitStatus(
   userAccess: UserAccessResult | null;
 }> {
   if (userId) {
-    const userAccess = await checkUserAccess(supabase, userId);
-    return {
-      isAuthenticated: true,
-      rateLimitInfo: null,
-      userAccess,
-    };
+    const userAccess = await checkUserAccess(userId);
+    return { isAuthenticated: true, rateLimitInfo: null, userAccess };
   }
 
   if (ip) {
-    const rateLimitInfo = await checkAnonymousRateLimit(supabase, ip);
-    return {
-      isAuthenticated: false,
-      rateLimitInfo,
-      userAccess: null,
-    };
+    const rateLimitInfo = await checkAnonymousRateLimit(ip);
+    return { isAuthenticated: false, rateLimitInfo, userAccess: null };
   }
 
-  // Fallback for unknown state
   return {
     isAuthenticated: false,
     rateLimitInfo: {

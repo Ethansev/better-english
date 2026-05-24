@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAuth } from "@/supabase/useAuth";
+import { useAuth } from "@/auth/useAuth";
 import { StatsCard } from "@/components/admin/StatsCard";
 import { RequestsChart } from "@/components/admin/RequestsChart";
 import { UserBreakdownChart } from "@/components/admin/UserBreakdownChart";

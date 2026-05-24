@@ -1,20 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/supabase/server";
-import { getRateLimitStatus } from "@/lib/rate-limit";
+import { headers } from "next/headers";
+import { auth } from "@/auth/server";
+import { getRateLimitStatus, extractClientIp } from "@/lib/rate-limit";
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const session = await auth.api.getSession({ headers: await headers() });
+    const userId = session?.user.id ?? null;
+    const ip = extractClientIp(request.headers);
 
-    const ip =
-      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-      request.headers.get("x-real-ip") ||
-      null;
-
-    const status = await getRateLimitStatus(supabase, ip, user?.id ?? null);
+    const status = await getRateLimitStatus(ip, userId);
 
     if (status.isAuthenticated) {
       return NextResponse.json({

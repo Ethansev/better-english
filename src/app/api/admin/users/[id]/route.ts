@@ -1,32 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/supabase/server";
+import { requireAdmin } from "@/lib/auth-helpers";
+import { prisma } from "@/prisma/client";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const admin = await requireAdmin();
+    if (!admin.ok) {
+      return NextResponse.json(
+        { error: admin.status === 401 ? "Unauthorized" : "Forbidden" },
+        { status: admin.status }
+      );
     }
-
-    // Note: Admin check is handled by middleware - only admins can reach /admin/* routes
 
     const { id: userId } = await params;
     const decodedUserId = decodeURIComponent(userId);
     const isAnonymous = decodedUserId.startsWith("ip:");
     const ipAddress = isAnonymous ? decodedUserId.slice(3) : null;
 
-    // Get date range from query params
     const searchParams = request.nextUrl.searchParams;
     const range = searchParams.get("range") || "30d";
 
-    // Calculate date filter
     const now = new Date();
     let startDate: Date | null = null;
 
@@ -53,80 +49,61 @@ export async function GET(
         startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     }
 
-    // Build analytics query with user/IP and date filter
-    let analyticsQuery = supabase.from("analytics").select("*");
+    const dateFilter = startDate ? { createdAt: { gte: startDate } } : {};
+    const analyticsWhere = isAnonymous
+      ? { ipAddress, ...dateFilter }
+      : { userId: decodedUserId, ...dateFilter };
 
-    if (isAnonymous) {
-      analyticsQuery = analyticsQuery.eq("ip_address", ipAddress);
-    } else {
-      analyticsQuery = analyticsQuery.eq("user_id", decodedUserId);
-    }
+    const analytics = await prisma.analytics.findMany({
+      where: analyticsWhere,
+      orderBy: { createdAt: "desc" },
+    });
 
-    if (startDate) {
-      analyticsQuery = analyticsQuery.gte("created_at", startDate.toISOString());
-    }
-
-    const { data: analytics, error: analyticsError } = await analyticsQuery.order(
-      "created_at",
-      { ascending: false }
-    );
-
-    if (analyticsError) {
-      console.error("Analytics query error:", analyticsError);
-      return NextResponse.json(
-        { error: "Failed to fetch user analytics" },
-        { status: 500 }
-      );
-    }
-
-    if (!analytics || analytics.length === 0) {
+    if (analytics.length === 0) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Fetch user profile for authenticated users
     let userProfile: {
       email: string | null;
       name: string | null;
-      is_admin: boolean;
-      account_type: string;
+      isAdmin: boolean;
+      accountType: string;
     } | null = null;
-    if (!isAnonymous) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("email, name, is_admin, account_type")
-        .eq("id", decodedUserId)
-        .single();
-      userProfile = profile;
-    }
-
-    // Fetch full text requests for authenticated users
     let fullTextRequests: Array<{
       id: string;
-      original_text: string;
-      improved_text: string;
-      created_at: string;
+      originalText: string;
+      improvedText: string;
+      createdAt: Date;
     }> = [];
 
     if (!isAnonymous) {
-      let requestsQuery = supabase
-        .from("requests")
-        .select("id, original_text, improved_text, created_at")
-        .eq("user_id", decodedUserId);
-
-      if (startDate) {
-        requestsQuery = requestsQuery.gte("created_at", startDate.toISOString());
-      }
-
-      const { data: requests } = await requestsQuery.order("created_at", {
-        ascending: false,
+      const profile = await prisma.profile.findUnique({
+        where: { id: decodedUserId },
+        select: { email: true, name: true, isAdmin: true, accountType: true },
       });
-      fullTextRequests = requests || [];
+      userProfile = profile
+        ? {
+            email: profile.email,
+            name: profile.name,
+            isAdmin: profile.isAdmin,
+            accountType: profile.accountType,
+          }
+        : null;
+
+      fullTextRequests = await prisma.request.findMany({
+        where: { userId: decodedUserId, ...dateFilter },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          originalText: true,
+          improvedText: true,
+          createdAt: true,
+        },
+      });
     }
 
-    // Calculate stats
     const totalRequests = analytics.length;
 
-    // Calculate days in range for average
     let daysInRange = 1;
     if (startDate) {
       daysInRange = Math.max(
@@ -134,7 +111,7 @@ export async function GET(
         Math.ceil((now.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000))
       );
     } else if (analytics.length > 0) {
-      const oldestDate = new Date(analytics[analytics.length - 1].created_at);
+      const oldestDate = analytics[analytics.length - 1]!.createdAt;
       daysInRange = Math.max(
         1,
         Math.ceil((now.getTime() - oldestDate.getTime()) / (24 * 60 * 60 * 1000))
@@ -142,64 +119,46 @@ export async function GET(
     }
     const avgPerDay = Math.round((totalRequests / daysInRange) * 10) / 10;
 
-    // Aggregate chart data with smart granularity
     const chartData: Record<string, number> = {};
     const useHourly = range === "today";
 
     analytics.forEach((a) => {
-      const date = new Date(a.created_at);
-      let key: string;
-
-      // Use local date, not UTC
+      const date = a.createdAt;
       const localDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-
-      if (useHourly) {
-        // Hourly buckets: "2024-11-28 14:00"
-        const hour = date.getHours().toString().padStart(2, "0");
-        key = `${localDate} ${hour}:00`;
-      } else {
-        // Daily buckets: "2024-11-28"
-        key = localDate;
-      }
-
+      const key = useHourly
+        ? `${localDate} ${date.getHours().toString().padStart(2, "0")}:00`
+        : localDate;
       chartData[key] = (chartData[key] || 0) + 1;
     });
 
-    // Convert to array sorted by date
     const chartDataArray = Object.entries(chartData)
       .map(([date, count]) => ({ date, count }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
-    // Merge analytics with full text requests
     const requests = analytics.map((a) => {
-      // For anonymous users, text is stored directly in analytics table
-      // For authenticated users, match with requests table by timestamp proximity
       if (isAnonymous) {
         return {
           id: a.id,
-          original_text: a.original_text || null,
-          improved_text: a.improved_text || null,
-          original_text_length: a.original_text_length,
-          improved_text_length: a.improved_text_length,
-          created_at: a.created_at,
+          original_text: a.originalText,
+          improved_text: a.improvedText,
+          original_text_length: a.originalTextLength,
+          improved_text_length: a.improvedTextLength,
+          created_at: a.createdAt.toISOString(),
         };
       }
 
-      // Find matching full text request within 2 seconds
       const matchingRequest = fullTextRequests.find((r) => {
-        const timeDiff = Math.abs(
-          new Date(r.created_at).getTime() - new Date(a.created_at).getTime()
-        );
-        return timeDiff < 2000; // 2 second tolerance
+        const timeDiff = Math.abs(r.createdAt.getTime() - a.createdAt.getTime());
+        return timeDiff < 2000;
       });
 
       return {
         id: a.id,
-        original_text: matchingRequest?.original_text || null,
-        improved_text: matchingRequest?.improved_text || null,
-        original_text_length: a.original_text_length,
-        improved_text_length: a.improved_text_length,
-        created_at: a.created_at,
+        original_text: matchingRequest?.originalText ?? null,
+        improved_text: matchingRequest?.improvedText ?? null,
+        original_text_length: a.originalTextLength,
+        improved_text_length: a.improvedTextLength,
+        created_at: a.createdAt.toISOString(),
       };
     });
 
@@ -210,13 +169,10 @@ export async function GET(
         name: userProfile?.name || null,
         isAnonymous,
         ipAddress,
-        accountType: userProfile?.account_type || null,
-        isAdmin: userProfile?.is_admin || false,
+        accountType: userProfile?.accountType || null,
+        isAdmin: userProfile?.isAdmin || false,
       },
-      stats: {
-        totalRequests,
-        avgPerDay,
-      },
+      stats: { totalRequests, avgPerDay },
       chartData: chartDataArray,
       requests,
     });

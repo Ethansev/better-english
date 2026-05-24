@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useAuth } from "@/supabase/useAuth";
+import { useAuth } from "@/auth/useAuth";
 import { AllRequestsHistory } from "@/components/admin/AllRequestsHistory";
 import {
   type DateRange,

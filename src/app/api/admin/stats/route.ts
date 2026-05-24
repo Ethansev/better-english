@@ -1,24 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/supabase/server";
+import { requireAdmin } from "@/lib/auth-helpers";
+import { prisma } from "@/prisma/client";
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const admin = await requireAdmin();
+    if (!admin.ok) {
+      return NextResponse.json(
+        { error: admin.status === 401 ? "Unauthorized" : "Forbidden" },
+        { status: admin.status }
+      );
     }
 
-    // Note: Admin check is handled by middleware - only admins can reach /admin/* routes
-
-    // Get date range from query params
     const searchParams = request.nextUrl.searchParams;
     const range = searchParams.get("range") || "7d";
 
-    // Calculate date filter
     const now = new Date();
     let startDate: Date | null = null;
 
@@ -45,45 +41,30 @@ export async function GET(request: NextRequest) {
         startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     }
 
-    // Build query with date filter
-    let analyticsQuery = supabase.from("analytics").select("*");
-    if (startDate) {
-      analyticsQuery = analyticsQuery.gte("created_at", startDate.toISOString());
-    }
+    const where = startDate ? { createdAt: { gte: startDate } } : {};
 
-    const { data: analytics, error: analyticsError } = await analyticsQuery.order(
-      "created_at",
-      { ascending: false }
-    );
+    const analytics = await prisma.analytics.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+    });
 
-    if (analyticsError) {
-      console.error("Analytics query error:", analyticsError);
-      return NextResponse.json(
-        { error: "Failed to fetch analytics" },
-        { status: 500 }
-      );
-    }
-
-    // Calculate stats
-    const totalRequests = analytics?.length || 0;
-    const anonymousRequests =
-      analytics?.filter((a) => !a.user_id).length || 0;
+    const totalRequests = analytics.length;
+    const anonymousRequests = analytics.filter((a) => !a.userId).length;
     const uniqueUsers = new Set(
-      analytics?.filter((a) => a.user_id).map((a) => a.user_id)
+      analytics.filter((a) => a.userId).map((a) => a.userId)
     ).size;
     const uniqueIPs = new Set(
-      analytics?.filter((a) => !a.user_id).map((a) => a.ip_address)
+      analytics.filter((a) => !a.userId).map((a) => a.ipAddress)
     ).size;
 
-    // Calculate days in range for average
     let daysInRange = 1;
     if (startDate) {
       daysInRange = Math.max(
         1,
         Math.ceil((now.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000))
       );
-    } else if (analytics && analytics.length > 0) {
-      const oldestDate = new Date(analytics[analytics.length - 1].created_at);
+    } else if (analytics.length > 0) {
+      const oldestDate = analytics[analytics.length - 1]!.createdAt;
       daysInRange = Math.max(
         1,
         Math.ceil((now.getTime() - oldestDate.getTime()) / (24 * 60 * 60 * 1000))
@@ -91,20 +72,37 @@ export async function GET(request: NextRequest) {
     }
     const avgPerDay = Math.round(totalRequests / daysInRange);
 
-    // Group by day for chart (using local date, not UTC)
     const dailyData: Record<string, number> = {};
-    analytics?.forEach((a) => {
-      const d = new Date(a.created_at);
+    analytics.forEach((a) => {
+      const d = a.createdAt;
       const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
       dailyData[date] = (dailyData[date] || 0) + 1;
     });
 
-    // Convert to array sorted by date
     const dailyRequests = Object.entries(dailyData)
       .map(([date, count]) => ({ date, count }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
-    // Group by user for table
+    const userIds = [
+      ...new Set(
+        analytics.filter((a) => a.userId).map((a) => a.userId as string)
+      ),
+    ];
+    const profiles = userIds.length
+      ? await prisma.profile.findMany({
+          where: { id: { in: userIds } },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            accountType: true,
+            isAdmin: true,
+          },
+        })
+      : [];
+
+    const profileMap = new Map(profiles.map((p) => [p.id, p]));
+
     const userCounts: Record<
       string,
       {
@@ -117,37 +115,25 @@ export async function GET(request: NextRequest) {
       }
     > = {};
 
-    // Fetch user profiles for email/name lookup
-    const userIds = [
-      ...new Set(analytics?.filter((a) => a.user_id).map((a) => a.user_id)),
-    ];
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("id, email, name, account_type, is_admin")
-      .in("id", userIds);
-
-    const profileMap = new Map(profiles?.map((p) => [p.id, p]) || []);
-
-    analytics?.forEach((a) => {
-      const key = a.user_id || `ip:${a.ip_address}`;
+    analytics.forEach((a) => {
+      const key = a.userId || `ip:${a.ipAddress}`;
       if (!userCounts[key]) {
-        const profile = a.user_id ? profileMap.get(a.user_id) : null;
+        const profile = a.userId ? profileMap.get(a.userId) : null;
         userCounts[key] = {
           email: profile?.email || null,
           name: profile?.name || null,
           count: 0,
-          lastActive: a.created_at,
-          accountType: profile?.account_type || null,
-          isAdmin: profile?.is_admin || false,
+          lastActive: a.createdAt.toISOString(),
+          accountType: profile?.accountType || null,
+          isAdmin: profile?.isAdmin || false,
         };
       }
       userCounts[key].count++;
-      if (new Date(a.created_at) > new Date(userCounts[key].lastActive)) {
-        userCounts[key].lastActive = a.created_at;
+      if (a.createdAt > new Date(userCounts[key].lastActive)) {
+        userCounts[key].lastActive = a.createdAt.toISOString();
       }
     });
 
-    // Convert to array and sort by count
     const users = Object.entries(userCounts)
       .map(([id, data]) => ({
         id,

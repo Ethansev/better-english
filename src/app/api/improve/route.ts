@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { headers } from "next/headers";
 import { buildOpenAIRequestBody, type PersonalityConfig } from "@/lib/openai";
 import type { Tone, Verbosity, PersonalityPreset } from "@/types/personality";
 import { MAX_CUSTOM_INSTRUCTIONS_LENGTH } from "@/types/personality";
-import { createClient } from "@/supabase/server";
-import { checkAnonymousRateLimit } from "@/lib/rate-limit";
+import { auth } from "@/auth/server";
+import { prisma } from "@/prisma/client";
+import { checkAnonymousRateLimit, extractClientIp } from "@/lib/rate-limit";
 import {
   createOpenAIStreamProcessor,
   formatSSEMessage,
   type AIResponse,
 } from "@/lib/streaming";
-import { SupabaseClient, User } from "@supabase/supabase-js";
 
 interface RateLimitInfo {
   remaining: number;
@@ -17,43 +18,43 @@ interface RateLimitInfo {
   resetsAt: string;
 }
 
-// Parallel DB writes for improved performance
 async function saveToDatabase(
-  supabase: SupabaseClient,
-  user: User | null,
+  userId: string | null,
   ip: string,
   originalText: string,
   improvedText: string
 ): Promise<void> {
-  const promises: Promise<void>[] = [];
+  const promises: Promise<unknown>[] = [];
 
-  // Save to requests table for authenticated users
-  if (user) {
+  // Save to requests table for authenticated users only
+  if (userId) {
     promises.push(
-      (async () => {
-        const { error } = await supabase.from("requests").insert({
-          user_id: user.id,
-          original_text: originalText,
-          improved_text: improvedText,
-        });
-        if (error) console.error("Failed to save history:", error);
-      })()
+      prisma.request
+        .create({
+          data: {
+            userId,
+            originalText,
+            improvedText,
+          },
+        })
+        .catch((err) => console.error("Failed to save history:", err))
     );
   }
 
   // Log analytics for ALL requests (even anonymous)
   promises.push(
-    (async () => {
-      const { error } = await supabase.from("analytics").insert({
-        user_id: user?.id || null,
-        ip_address: ip,
-        original_text_length: originalText.length,
-        improved_text_length: improvedText.length,
-        original_text: user ? null : originalText,
-        improved_text: user ? null : improvedText,
-      });
-      if (error) console.error("Failed to log analytics:", error);
-    })()
+    prisma.analytics
+      .create({
+        data: {
+          userId,
+          ipAddress: ip,
+          originalTextLength: originalText.length,
+          improvedTextLength: improvedText.length,
+          originalText: userId ? null : originalText,
+          improvedText: userId ? null : improvedText,
+        },
+      })
+      .catch((err) => console.error("Failed to log analytics:", err))
   );
 
   await Promise.all(promises);
@@ -61,21 +62,15 @@ async function saveToDatabase(
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const session = await auth.api.getSession({ headers: await headers() });
+    const userId = session?.user.id ?? null;
 
-    // Get IP address for rate limiting
-    const ip =
-      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-      request.headers.get("x-real-ip") ||
-      "unknown";
+    const ip = extractClientIp(request.headers);
 
     // Rate limit check for anonymous users
     let rateLimitResult = null;
-    if (!user) {
-      rateLimitResult = await checkAnonymousRateLimit(supabase, ip);
+    if (!userId) {
+      rateLimitResult = await checkAnonymousRateLimit(ip);
       if (!rateLimitResult.allowed) {
         return NextResponse.json(
           {
@@ -95,8 +90,8 @@ export async function POST(request: NextRequest) {
       tone = "casual",
       verbosity = "balanced",
       personalityPreset = null,
-      customInstructions = null
-    } = await request.json() as {
+      customInstructions = null,
+    } = (await request.json()) as {
       text: string;
       tone?: Tone;
       verbosity?: Verbosity;
@@ -118,32 +113,37 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate custom instructions length
-    if (customInstructions && customInstructions.length > MAX_CUSTOM_INSTRUCTIONS_LENGTH) {
+    if (
+      customInstructions &&
+      customInstructions.length > MAX_CUSTOM_INSTRUCTIONS_LENGTH
+    ) {
       return NextResponse.json(
-        { error: `Custom instructions must be ${MAX_CUSTOM_INSTRUCTIONS_LENGTH} characters or less.` },
+        {
+          error: `Custom instructions must be ${MAX_CUSTOM_INSTRUCTIONS_LENGTH} characters or less.`,
+        },
         { status: 400 }
       );
     }
 
     const validTones: Tone[] = ["casual", "formal"];
     const validVerbosities: Verbosity[] = ["concise", "balanced", "detailed"];
-    const validPresets: (PersonalityPreset | null)[] = ["friendly", "professional", "academic", "technical", null];
+    const validPresets: (PersonalityPreset | null)[] = [
+      "friendly",
+      "professional",
+      "academic",
+      "technical",
+      null,
+    ];
 
     if (!validTones.includes(tone)) {
-      return NextResponse.json(
-        { error: "Invalid tone value" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Invalid tone value" }, { status: 400 });
     }
-
     if (!validVerbosities.includes(verbosity)) {
       return NextResponse.json(
         { error: "Invalid verbosity value" },
         { status: 400 }
       );
     }
-
     if (!validPresets.includes(personalityPreset)) {
       return NextResponse.json(
         { error: "Invalid personality preset value" },
@@ -159,7 +159,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Build personality config
     const personalityConfig: PersonalityConfig = {
       tone,
       verbosity,
@@ -167,13 +166,11 @@ export async function POST(request: NextRequest) {
       customInstructions,
     };
 
-    // Build request body and add streaming
     const requestBody = {
       ...buildOpenAIRequestBody(text, personalityConfig),
       stream: true,
     };
 
-    // Add 30-second timeout
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30000);
 
@@ -205,7 +202,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Prepare rate limit info for anonymous users
     const rateLimitInfo: RateLimitInfo | null = rateLimitResult
       ? {
           remaining: Math.max(0, rateLimitResult.remaining - 1),
@@ -214,16 +210,14 @@ export async function POST(request: NextRequest) {
         }
       : null;
 
-    // Create a streaming response using the stream processor
     const encoder = new TextEncoder();
     const stream = createOpenAIStreamProcessor(response, {
       onSuccess: (result: AIResponse, streamController) => {
-        // Run DB writes in parallel (don't await - fire and forget for faster response)
-        saveToDatabase(supabase, user, ip, text, result.text).catch((err) => {
+        // Fire-and-forget DB writes for faster response
+        saveToDatabase(userId, ip, text, result.text).catch((err) => {
           console.error("Database write error:", err);
         });
 
-        // Send rate limit info for anonymous users
         if (rateLimitInfo) {
           streamController.enqueue(
             encoder.encode(formatSSEMessage({ type: "meta", rateLimitInfo }))

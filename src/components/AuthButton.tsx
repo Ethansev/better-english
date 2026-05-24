@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useAuth } from "@/supabase/useAuth";
+import { useAuth } from "@/auth/useAuth";
 
 export function AuthButton() {
   const { isAuthenticated, isLoading, signOut } = useAuth();

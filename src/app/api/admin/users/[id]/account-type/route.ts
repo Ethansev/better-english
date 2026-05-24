@@ -1,44 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/supabase/server";
-import type { AccountType } from "@/types/admin";
+import { requireAdmin } from "@/lib/auth-helpers";
+import { prisma } from "@/prisma/client";
+import type { AccountType as AccountTypeApi } from "@/types/admin";
+import { AccountType } from "@prisma/client";
 
-const VALID_ACCOUNT_TYPES: AccountType[] = ["free", "unlimited", "premium"];
+const VALID_ACCOUNT_TYPES: AccountTypeApi[] = ["free", "unlimited", "premium"];
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const admin = await requireAdmin();
+    if (!admin.ok) {
+      return NextResponse.json(
+        { error: admin.status === 401 ? "Unauthorized" : "Forbidden" },
+        { status: admin.status }
+      );
     }
-
-    // Note: Admin check is handled by middleware - only admins can reach /admin/* routes
 
     const { id: userId } = await params;
     const decodedUserId = decodeURIComponent(userId);
 
-    // Parse request body
     const body = await request.json();
-    const { accountType } = body as { accountType: AccountType };
+    const { accountType } = body as { accountType: AccountTypeApi };
 
-    // Validate account type
     if (!accountType || !VALID_ACCOUNT_TYPES.includes(accountType)) {
       return NextResponse.json(
-        {
-          error: "Invalid account type",
-          validTypes: VALID_ACCOUNT_TYPES,
-        },
+        { error: "Invalid account type", validTypes: VALID_ACCOUNT_TYPES },
         { status: 400 }
       );
     }
 
-    // Check if this is an anonymous user (can't have account type)
     if (decodedUserId.startsWith("ip:")) {
       return NextResponse.json(
         { error: "Cannot set account type for anonymous users" },
@@ -46,24 +39,20 @@ export async function PATCH(
       );
     }
 
-    // Update the user's account type
-    const { error: updateError } = await supabase
-      .from("profiles")
-      .update({ account_type: accountType })
-      .eq("id", decodedUserId);
-
-    if (updateError) {
-      console.error("Error updating account type:", updateError);
+    try {
+      await prisma.profile.update({
+        where: { id: decodedUserId },
+        data: { accountType: accountType as AccountType },
+      });
+    } catch (err) {
+      console.error("Error updating account type:", err);
       return NextResponse.json(
         { error: "Failed to update account type" },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({
-      success: true,
-      accountType,
-    });
+    return NextResponse.json({ success: true, accountType });
   } catch (error) {
     console.error("Error updating account type:", error);
     return NextResponse.json(

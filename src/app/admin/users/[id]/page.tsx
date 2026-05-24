@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { useAuth } from "@/supabase/useAuth";
+import { useAuth } from "@/auth/useAuth";
 import { StatsCard } from "@/components/admin/StatsCard";
 import { RequestsChart } from "@/components/admin/RequestsChart";
 import { UserRequestsHistory } from "@/components/admin/UserRequestsHistory";
